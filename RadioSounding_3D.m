@@ -26,8 +26,13 @@ function [] = RadioSounding_Core( algo )
     V_flyby = 60000;           % flyby speed, in m/s
     phi_ca = 30;               % azimuth angle at closest approach, in degrees
     theta_ca = 30;             % elevation angle at closest approach, in degrees
-%    sc_inclination = 0;        % inclination of orbit
+    gamma = 0.8;               % ionization rate exponent, dimensionless
+    alpha = 0.00002;           % ionization rate, in 1/s
     a = 0.8;                   % gas coma asymmetry factor, dimensionless
+    theta_jet = [ -30,80];     % solar zenith angle of center of gas jet, in degrees
+    dtheta_jet = [ 15, 10 ];   % angular half-width of gas jet, in degrees
+    f_jet = 1*[3,5];           % density contrast in jet, dimensionless
+%    sc_inclination = 0;        % inclination of orbit
     rel_error = 0.05;          % relative measurement error, dimensionless
     t0 = 150;                  % limits of time interval, in s
     dt = 0.2;                  % measurement time resolution, in s
@@ -47,7 +52,9 @@ function [] = RadioSounding_Core( algo )
     % Generate all trajectories and conditions in the ionosphere
     t = ( -t0 : dt : t0 )';
     [ r_A, phi_A, theta_A ] = FlybyTrajectory( V_flyby, D_ca_A, phi_ca, theta_ca, t_ca_A, t );
-    f_A = CometReal_OneOverRgamma( r_A, phi_A, theta_A, Q_gas, gamma_gas );
+    %f_A = CometReal_OneOverRgamma( r_A, phi_A, theta_A, Q_gas, gamma_gas );
+    jet = struct( 'theta', theta_jet, 'dtheta', dtheta_jet, 'f', f_jet );
+    f_A = CometIonosphere( r_A, phi_A, theta_A, r_comet, Q_gas, v_gas, a, alpha, gamma, jet, t );
     n_t = length(r_A);
     
     % Generate measurements with noise
@@ -77,7 +84,7 @@ function [] = RadioSounding_Core( algo )
     hyl = get( ha1, 'YLabel' );
     set( hyl, 'String', '$f$ [cm$^{-3}$]', 'Interpreter', 'latex', 'FontSize', font_size );
     
-    % Plot problem geometry
+%     Plot problem geometry
     hf2 = findobj( 0, 'Tag', 'RadioSounding - geometry' );
     if isempty(hf2)
         hf2 = figure( 'Color', 'white', 'Tag', 'RadioSounding - geometry' );
@@ -95,10 +102,12 @@ function [] = RadioSounding_Core( algo )
             'XLim', [ -3*D_ca_A, 3*D_ca_A ]/1000, ...
             'YLim', [ -3*D_ca_A, 3*D_ca_A ]/1000  ...
         );
-    [ xx, yy ] = meshgrid( linspace(-3*D_ca_A,3*D_ca_A,100), linspace(-3*D_ca_A,3*D_ca_A,100) );
+    [ xx, yy ] = meshgrid( linspace(-3*D_ca_A,3*D_ca_A,100), linspace(-3*D_ca_A,3*D_ca_A,100));
     plot_rr = sqrt( xx.^2 + yy.^2 );
     plot_phi = atan2d( yy, xx );
-    plot_ne = CometModel_OneOverRgamma( plot_rr, plot_phi, Q_gas, gamma_gas );
+    plot_theta = atan2d(sqrt(xx.^2 + yy.^2), 0);
+    plot_ne = CometIonosphere( plot_rr, plot_phi, plot_theta, r_comet, Q_gas, v_gas, a, alpha, gamma, jet );
+    %plot_ne = CometReal_OneOverRgamma( plot_rr, plot_phi, plot_theta, Q_gas, gamma_gas );
     surface( ha2, xx/1000, yy/1000, 0*plot_ne, log10(plot_ne/1e6), 'EdgeColor', 'none', 'FaceColor', 'interp' );
     view( 0, 90 );
     hold( ha2, 'on' );
@@ -275,10 +284,55 @@ function F = TargetFunction_OneOverRgamma( x, data )
     end
 end
 
-function f = CometReal_OneOverRgamma( r, phi, theta, Q, gamma ) 
-    % Routine that computes the power law model
-    % f = Q / r^gamma
-    f = Q ./ r.^(gamma);
+% function f = CometReal_OneOverRgamma( r, phi, theta, Q, gamma ) 
+%     % Routine that computes the power law model
+%     % f = Q / r^gamma
+%     f = Q ./ r.^(gamma);
+% end
+
+function q_factor = JetEnhancement( phi, jet )
+    % Unpack jet-related data
+    f_jet = jet.f;
+    theta_jet = -jet.theta;
+    dtheta_jet = jet.dtheta;
+    
+    q_factor = ones(size(phi));
+    
+    n_jet = length(jet.f);
+    for i=1:n_jet
+        % Compute angular distance, but beware of the periodicity jump
+        angular_separation = phi+180-theta_jet(i);
+        angular_separation_alt = angular_separation-360;
+        test = ( abs(angular_separation_alt) < abs(angular_separation) );
+        angular_separation(test) = angular_separation_alt(test);
+
+        % Compute jet density enhancement factor
+        q_factor = q_factor + f_jet(i) * exp( -(angular_separation/dtheta_jet(i)).^2 );
+    end
+end
+
+function q_gas = GasProduction( phi, r_comet, a, Q_gas, jet )
+    
+    % Compute the flux on the nucleus surface at the subsolar point
+    q_factor = JetEnhancement( phi, jet );
+    q_gas0 = ( 1 + a ) * q_factor .* Q_gas ./ ( 4 * pi * r_comet.^2 );
+    
+    % Compute the flux on the nucleus surface at the base of the streamline
+    % as a function of theta
+    q_gas = q_gas0 .* ( 1 + a*cosd(phi+180) ) / ( 1 + a );
+end
+
+function n_e = CometIonosphere( r, phi, theta, r_comet, Q_gas, v_gas, a, alpha, gamma, jet, t ) 
+    % Routine that computes total electron density as a function of theta and r
+
+    % Gas production at the surface
+    q_gas = GasProduction( phi, r_comet, a, Q_gas, jet );
+    
+    % Ionospheric charge density
+    % Based on t => add rotation
+    n_e = ...
+        ( r_comet^(2*gamma) * alpha / ( (3-2*gamma)* v_gas^(gamma+1) ) ) ...
+        * q_gas.^gamma .* ( r - r_comet ).^(3-2*gamma) ./ r.^2;
 end
 
 function f = CometModel_OneOverRgamma( r, phi, Q, gamma ) 
@@ -291,11 +345,13 @@ function [ r, phi, theta ] = FlybyTrajectory( Vflyby, D_ca, phi_ca, theta_ca, t_
     % Trajectory as a function of time
     
     % Cartesian coordinates
+    % Change this, so that theta_ca is used; now, the coordinates are still
+    % 2D (because z is always 0)
     x_sc = Vflyby * sind(phi_ca) * ( t - t_ca ) - D_ca * cosd( phi_ca );
     y_sc = Vflyby * cosd(phi_ca) * ( t - t_ca ) + D_ca * sind( phi_ca );
     z_sc = zeros(length(t),1);
     
-    % Polar coordinates
+    % Spherical coordinates
     r = sqrt( x_sc.^2 + y_sc.^2 + z_sc.^2);
     phi = atan2d( y_sc, x_sc );
     theta = atan2d(sqrt(x_sc.^2 + y_sc.^2), z_sc);
