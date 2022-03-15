@@ -23,7 +23,13 @@ function [] = RadioSounding_Core( algo )
     v_gas = 1000;              % neutral gas speed, in m/s
     D_ca_A = 1000000;          % distance at closest approach of A, in m
     t_ca_A = 0;                % time at closest approach of A, in s
-    V_flyby = 60000;           % flyby speed, in m/s
+%     delta_B1 = [300000, -250000, -650000]              % coordinates spacecraft B1 relative to A, in m
+%     delta_B2 = [200000, -500000, -550000]              % coordinates spacecraft B2 relative to A, in m
+    delta_B1 = [-183000, 150000, -766000]              % coordinates spacecraft B1 relative to A, in m
+    delta_B2 = [-233000, -350000, -466000]              % coordinates spacecraft B2 relative to A, in m
+
+%    V_flyby = 60000;           % flyby speed, in m/s
+    V_flyby = [42000, 42000, 0];  % flyby speedvector, in m/s
     phi_ca = 30;               % azimuth angle at closest approach, in degrees
     theta_ca = 30;             % elevation angle at closest approach, in degrees
     gamma = 0.8;               % ionization rate exponent, dimensionless
@@ -52,14 +58,27 @@ function [] = RadioSounding_Core( algo )
     % Generate all trajectories and conditions in the ionosphere
     t = ( -t0 : dt : t0 )';
     [ r_A, phi_A, theta_A ] = FlybyTrajectory( V_flyby, D_ca_A, phi_ca, theta_ca, t_ca_A, t );
-    %f_A = CometReal_OneOverRgamma( r_A, phi_A, theta_A, Q_gas, gamma_gas );
-    jet = struct( 'theta', theta_jet, 'dtheta', dtheta_jet, 'f', f_jet );
-    f_A = CometIonosphere( r_A, phi_A, theta_A, r_comet, Q_gas, v_gas, a, alpha, gamma, jet, t );
+    [x_ca_A, y_ca_A, z_ca_A] = SphericalToCartesian(D_ca_A, phi_ca, theta_ca);
+    [r_ca_B1, phi_ca_B1, theta_ca_B1] = CartesianToSpherical(x_ca_A + delta_B1(1), y_ca_A + delta_B1(2), z_ca_A + delta_B1(3))
+    [r_ca_B2, phi_ca_B2, theta_ca_B2] = CartesianToSpherical(x_ca_A + delta_B2(1), y_ca_A + delta_B2(2), z_ca_A + delta_B2(3))
+    sqrt((x_ca_A + delta_B1(1))^2 + (y_ca_A + delta_B1(2))^2 + (z_ca_A + delta_B1(3))^2)
+    sqrt((x_ca_A + delta_B2(1))^2 + (y_ca_A + delta_B2(2))^2 + (z_ca_A + delta_B2(3))^2)
+    [ r_B1, phi_B1, theta_B1] = FlybyTrajectory( V_flyby, r_ca_B1, phi_ca_B1, theta_ca_B1, t_ca_A, t );
+    [ r_B2, phi_B2, theta_B2] = FlybyTrajectory( V_flyby, r_ca_B2, phi_ca_B2, theta_ca_B2, t_ca_A, t );
+
+    f_A = CometReal_OneOverRgamma( r_A, phi_A, theta_A, Q_gas, gamma_gas );
+    f_B1 = CometReal_OneOverRgamma( r_B1, phi_B1, theta_B1, Q_gas, gamma_gas );
+    f_B2 = CometReal_OneOverRgamma( r_B2, phi_B2, theta_B2, Q_gas, gamma_gas );
+
+%     jet = struct( 'theta', theta_jet, 'dtheta', dtheta_jet, 'f', f_jet );
+%     f_A = CometIonosphere( r_A, phi_A, theta_A, r_comet, Q_gas, v_gas, a, alpha, gamma, jet, t );
     n_t = length(r_A);
     
     % Generate measurements with noise
     rng(1);
     f_A_obs = f_A .* ( 1 + rel_error * randn(size(f_A)) );
+    f_B1_obs = f_B1 .* ( 1 + rel_error * randn(size(f_A)) );
+    f_B2_obs = f_B2 .* ( 1 + rel_error * randn(size(f_A)) );
     
     % Plot measurements time sequence
     hf1 = findobj( 0, 'Tag', 'RadioSounding - plasma density' );
@@ -79,13 +98,17 @@ function [] = RadioSounding_Core( algo )
     hold( ha1, 'on' );
     plot( ha1, t, f_A_obs/1e6, 'o', 'Color', [ 0 0 1 ], 'MarkerSize', marker_size );
     plot( ha1, t, f_A/1e6, '-', 'Color', [ 0 0 1 ], 'LineWidth', line_width );
+    plot( ha1, t, f_B1_obs/1e6, 'o', 'Color', [ 0 1 0 ], 'MarkerSize', marker_size );
+    plot( ha1, t, f_B1/1e6, '-', 'Color', [ 0 1 0 ], 'LineWidth', line_width );
+    plot( ha1, t, f_B2_obs/1e6, 'o', 'Color', [ 1 0 0 ], 'MarkerSize', marker_size );
+    plot( ha1, t, f_B2/1e6, '-', 'Color', [ 1 0 0 ], 'LineWidth', line_width );
     hxl = get( ha1, 'XLabel' );
     set( hxl, 'String', '$t$ [s]', 'Interpreter', 'latex', 'FontSize', font_size );
     hyl = get( ha1, 'YLabel' );
     set( hyl, 'String', '$f$ [cm$^{-3}$]', 'Interpreter', 'latex', 'FontSize', font_size );
     
 %     Plot problem geometry
-    hf2 = findobj( 0, 'Tag', 'RadioSounding - geometry' );
+hf2 = findobj( 0, 'Tag', 'RadioSounding - geometry' );
     if isempty(hf2)
         hf2 = figure( 'Color', 'white', 'Tag', 'RadioSounding - geometry' );
     else
@@ -100,28 +123,49 @@ function [] = RadioSounding_Core( algo )
             'FontSize', font_size, ...
             'XLimMode', 'manual', ...
             'XLim', [ -3*D_ca_A, 3*D_ca_A ]/1000, ...
-            'YLim', [ -3*D_ca_A, 3*D_ca_A ]/1000  ...
+            'YLim', [ -3*D_ca_A, 3*D_ca_A ]/1000,  ...
+            'ZLim', [ -3*D_ca_A, 3*D_ca_A ]/1000 ...
         );
-    [ xx, yy ] = meshgrid( linspace(-3*D_ca_A,3*D_ca_A,100), linspace(-3*D_ca_A,3*D_ca_A,100));
-    plot_rr = sqrt( xx.^2 + yy.^2 );
+    [ xx, yy, zz] = meshgrid( linspace(-3*D_ca_A,3*D_ca_A,100), linspace(-3*D_ca_A,3*D_ca_A,100),  linspace(-3*D_ca_A,3*D_ca_A,100));
+    plot_rr = sqrt( xx.^2 + yy.^2 + zz.^2);
     plot_phi = atan2d( yy, xx );
-    plot_theta = atan2d(sqrt(xx.^2 + yy.^2), 0);
-    plot_ne = CometIonosphere( plot_rr, plot_phi, plot_theta, r_comet, Q_gas, v_gas, a, alpha, gamma, jet );
-    %plot_ne = CometReal_OneOverRgamma( plot_rr, plot_phi, plot_theta, Q_gas, gamma_gas );
-    surface( ha2, xx/1000, yy/1000, 0*plot_ne, log10(plot_ne/1e6), 'EdgeColor', 'none', 'FaceColor', 'interp' );
-    view( 0, 90 );
+    plot_theta = atan2d(sqrt(xx.^2 + yy.^2), zz);
+%     plot_ne = CometIonosphere( plot_rr, plot_phi, plot_theta, r_comet, Q_gas, v_gas, a, alpha, gamma, jet );
+    plot_ne = CometReal_OneOverRgamma( plot_rr, plot_phi, plot_theta, Q_gas, gamma_gas );
+    xslice = 0;   
+    yslice = 0;
+    zslice = 0;
+    slice(ha2, xx/1000, yy/1000, zz/1000,log10(plot_ne/1e6),xslice,yslice,zslice)
+    view(3)
     hold( ha2, 'on' );
     idx = round(n_t/2);
-    plot( ha2, ...
-        r_A.*cosd(phi_A)/1000, r_A.*sind(phi_A)/1000, 'b-', ...
-        0, 0, 'ko', ...
-        r_A(idx).*cosd(phi_A(idx))/1000, r_A(idx).*sind(phi_A(idx))/1000, 'bo', ...
+    plot3(ha2, ...
+        -r_A.*sind(theta_A).*cosd(phi_A)/1000, r_A.*sind(theta_A).*sind(phi_A)/1000, r_A.*cosd(theta_A)/1000, ...
+        'b-', ...
+        0, 0, 0, 'ko', ...
+        -r_A(idx).*sind(theta_A(idx)).*cosd(phi_A(idx))/1000, r_A(idx).*sind(theta_A(idx)).*sind(phi_A(idx))/1000, r_A(idx).*cosd(theta_A(idx))/1000, 'bo', ...
+        'LineWidth', line_width, 'MarkerSize', marker_size ...
+    );
+    plot3(ha2, ...
+        -r_B1.*sind(theta_B1).*cosd(phi_B1)/1000, r_B1.*sind(theta_B1).*sind(phi_B1)/1000, r_B1.*cosd(theta_B1)/1000, ...
+        'g-', ...
+        0, 0, 0, 'ko', ...
+        -r_B1(idx).*sind(theta_B1(idx)).*cosd(phi_B1(idx))/1000, r_B1(idx).*sind(theta_B1(idx)).*sind(phi_B1(idx))/1000, r_B1(idx).*cosd(theta_B1(idx))/1000, 'go', ...
+        'LineWidth', line_width, 'MarkerSize', marker_size ...
+    );
+    plot3(ha2, ...
+        -r_B2.*sind(theta_B2).*cosd(phi_B2)/1000, r_B2.*sind(theta_B2).*sind(phi_B2)/1000, r_B2.*cosd(theta_B2)/1000, ...
+        'r-', ...
+        0, 0, 0, 'ko', ...
+        -r_B2(idx).*sind(theta_B2(idx)).*cosd(phi_B2(idx))/1000, r_B2(idx).*sind(theta_B2(idx)).*sind(phi_B2(idx))/1000, r_B2(idx).*cosd(theta_B2(idx))/1000, 'ro', ...
         'LineWidth', line_width, 'MarkerSize', marker_size ...
     );
     hxl = get( ha2, 'XLabel' );
     set( hxl, 'String', '$x$ [km]', 'Interpreter', 'latex', 'FontSize', font_size );
     hyl = get( ha2, 'YLabel' );
     set( hyl, 'String', '$y$ [km]', 'Interpreter', 'latex', 'FontSize', font_size );
+    hzl = get( ha2, 'ZLabel' );
+    set( hzl, 'String', '$z$ [km]', 'Interpreter', 'latex', 'FontSize', font_size );
     
     hc = colorbar( ha2 );
     set( get(hc, 'Title' ), 'String', '$f$ [cm$^{-3}$]', 'Interpreter', 'latex', 'FontSize', font_size );
@@ -153,7 +197,7 @@ function [] = RadioSounding_Core( algo )
     );
 
     drawnow;
-                    
+         
     Q_start = Q_gas*1.33;
     gamma_start = gamma_gas*1.25;
     
@@ -284,11 +328,11 @@ function F = TargetFunction_OneOverRgamma( x, data )
     end
 end
 
-% function f = CometReal_OneOverRgamma( r, phi, theta, Q, gamma ) 
-%     % Routine that computes the power law model
-%     % f = Q / r^gamma
-%     f = Q ./ r.^(gamma);
-% end
+function f = CometReal_OneOverRgamma( r, phi, theta, Q, gamma ) 
+    % Routine that computes the power law model
+    % f = Q / r^gamma
+    f = Q ./ r.^(gamma);
+end
 
 function q_factor = JetEnhancement( phi, jet )
     % Unpack jet-related data
@@ -341,15 +385,30 @@ function f = CometModel_OneOverRgamma( r, phi, Q, gamma )
     f = Q ./ r.^(gamma);
 end
 
+function [x, y, z] = SphericalToCartesian(r, phi, theta)
+    % Routine that converts spherical coordinates to cartesian coordinates
+    x = r * sind(theta) * cosd(phi);
+    y = r * sind(theta) * sind(phi);
+    z = r * cosd(theta);
+end
+
+function [r, phi, theta] = CartesianToSpherical(x, y, z)
+    % Routine that converts cartesian coordinates to spherical coordinates
+    r = sqrt( x^2 + y^2 + z^2);
+    phi = atan2d( y, x );
+    theta = atan2d(sqrt(x^2 + y^2), z);
+end
+
 function [ r, phi, theta ] = FlybyTrajectory( Vflyby, D_ca, phi_ca, theta_ca, t_ca, t )
     % Trajectory as a function of time
     
-    % Cartesian coordinates
-    % Change this, so that theta_ca is used; now, the coordinates are still
-    % 2D (because z is always 0)
-    x_sc = Vflyby * sind(phi_ca) * ( t - t_ca ) - D_ca * cosd( phi_ca );
-    y_sc = Vflyby * cosd(phi_ca) * ( t - t_ca ) + D_ca * sind( phi_ca );
-    z_sc = zeros(length(t),1);
+    % Cartesian coordinates closest approach
+    [x_ca, y_ca, z_ca] = SphericalToCartesian(D_ca, phi_ca, theta_ca);
+
+    % Cartesian coordinates in time
+    x_sc = (t-t_ca) * Vflyby(1) - x_ca;
+    y_sc = (t-t_ca) * Vflyby(2) + y_ca;
+    z_sc = (t-t_ca) * Vflyby(3) + z_ca;
     
     % Spherical coordinates
     r = sqrt( x_sc.^2 + y_sc.^2 + z_sc.^2);
