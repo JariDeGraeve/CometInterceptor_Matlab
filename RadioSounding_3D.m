@@ -23,12 +23,10 @@ function [] = RadioSounding_Core( algo )
     v_gas = 1000;              % neutral gas speed, in m/s
     D_ca_A = 1000000;          % distance at closest approach of A, in m
     t_ca_A = 0;                % time at closest approach of A, in s
-%     delta_B1 = [300000, -250000, -650000]              % coordinates spacecraft B1 relative to A, in m
-%     delta_B2 = [200000, -500000, -550000]              % coordinates spacecraft B2 relative to A, in m
-    delta_B1 = [-183000, 150000, -766000]              % coordinates spacecraft B1 relative to A, in m
-    delta_B2 = [-233000, -350000, -466000]              % coordinates spacecraft B2 relative to A, in m
 
-%    V_flyby = 60000;           % flyby speed, in m/s
+    delta_B1 = [-183000, 150000, -766000]   % coordinates spacecraft B1 relative to A, in m
+    delta_B2 = [-233000, -350000, -466000]  % coordinates spacecraft B2 relative to A, in m
+
     V_flyby = [42000, 42000, 0];  % flyby speedvector, in m/s
     phi_ca = 30;               % azimuth angle at closest approach, in degrees
     theta_ca = 30;             % elevation angle at closest approach, in degrees
@@ -59,8 +57,8 @@ function [] = RadioSounding_Core( algo )
     t = ( -t0 : dt : t0 )';
     [ r_A, phi_A, theta_A ] = FlybyTrajectory( V_flyby, D_ca_A, phi_ca, theta_ca, t_ca_A, t );
     [x_ca_A, y_ca_A, z_ca_A] = SphericalToCartesian(D_ca_A, phi_ca, theta_ca);
-    [r_ca_B1, phi_ca_B1, theta_ca_B1] = CartesianToSpherical(x_ca_A + delta_B1(1), y_ca_A + delta_B1(2), z_ca_A + delta_B1(3))
-    [r_ca_B2, phi_ca_B2, theta_ca_B2] = CartesianToSpherical(x_ca_A + delta_B2(1), y_ca_A + delta_B2(2), z_ca_A + delta_B2(3))
+    [r_ca_B1, phi_ca_B1, theta_ca_B1] = CartesianToSpherical(x_ca_A + delta_B1(1), y_ca_A + delta_B1(2), z_ca_A + delta_B1(3));
+    [r_ca_B2, phi_ca_B2, theta_ca_B2] = CartesianToSpherical(x_ca_A + delta_B2(1), y_ca_A + delta_B2(2), z_ca_A + delta_B2(3));
     sqrt((x_ca_A + delta_B1(1))^2 + (y_ca_A + delta_B1(2))^2 + (z_ca_A + delta_B1(3))^2)
     sqrt((x_ca_A + delta_B2(1))^2 + (y_ca_A + delta_B2(2))^2 + (z_ca_A + delta_B2(3))^2)
     [ r_B1, phi_B1, theta_B1] = FlybyTrajectory( V_flyby, r_ca_B1, phi_ca_B1, theta_ca_B1, t_ca_A, t );
