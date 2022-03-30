@@ -38,7 +38,7 @@ function [] = RadioSounding_Core( algo )
     dtheta_jet = [ 15, 10 ];   % angular half-width of gas jet, in degrees
     phi_jet = [0, -20];
     dphi_jet = [10, 20];
-    f_jet = 1*[3,5];           % density contrast in jet, dimensionless
+    f_jet = [3,5];           % density contrast in jet, dimensionless
 %    sc_inclination = 0;        % inclination of orbit
     rel_error = 0.05;          % relative measurement error, dimensionless
     t0 = 150;                  % limits of time interval, in s
@@ -70,15 +70,15 @@ function [] = RadioSounding_Core( algo )
     [r_B2, phi_B2, theta_B2] = FlybyTrajectory( V_flyby, r_ca_B2, phi_ca_B2, theta_ca_B2, t_ca_A, t );
     
     % Conditions in ionosphere along trajectories
-    f_A = CometReal_OneOverRgamma( r_A, phi_A, theta_A, Q_gas, gamma_gas );
-    f_B1 = CometReal_OneOverRgamma( r_B1, phi_B1, theta_B1, Q_gas, gamma_gas );
-    f_B2 = CometReal_OneOverRgamma( r_B2, phi_B2, theta_B2, Q_gas, gamma_gas );
+%     f_A = CometReal_OneOverRgamma( r_A, phi_A, theta_A, Q_gas, gamma_gas );
+%     f_B1 = CometReal_OneOverRgamma( r_B1, phi_B1, theta_B1, Q_gas, gamma_gas );
+%     f_B2 = CometReal_OneOverRgamma( r_B2, phi_B2, theta_B2, Q_gas, gamma_gas );
 
-%     jet = struct( 'theta', theta_jet, 'dtheta', dtheta_jet,'phi', phi_jet, 'dphi', dphi_jet ,'f', f_jet );
+    jet = struct( 'theta', theta_jet, 'dtheta', dtheta_jet,'phi', phi_jet, 'dphi', dphi_jet ,'f', f_jet );
 %     % Conditions in ionosphere along trajectories
-%     f_A = CometIonosphere( r_A, phi_A, theta_A, r_comet, Q_gas, v_gas, a, alpha, gamma, jet, t );
-%     f_B1 = CometIonosphere( r_B1, phi_B1, theta_B1, r_comet, Q_gas, v_gas, a, alpha, gamma, jet, t );
-%     f_B2 = CometIonosphere( r_B2, phi_B2, theta_B2, r_comet, Q_gas, v_gas, a, alpha, gamma, jet, t );
+    f_A = CometIonosphere( r_A, phi_A, theta_A, r_comet, Q_gas, v_gas, a, alpha, gamma, jet, t );
+    f_B1 = CometIonosphere( r_B1, phi_B1, theta_B1, r_comet, Q_gas, v_gas, a, alpha, gamma, jet, t );
+    f_B2 = CometIonosphere( r_B2, phi_B2, theta_B2, r_comet, Q_gas, v_gas, a, alpha, gamma, jet, t );
     
     n_t = length(r_A);
     
@@ -138,12 +138,14 @@ function [] = RadioSounding_Core( algo )
     plot_rr = sqrt( xx.^2 + yy.^2 + zz.^2);
     plot_phi = atan2d( yy, xx );
     plot_theta = atan2d(sqrt(xx.^2 + yy.^2), zz);
-%     plot_ne = CometIonosphere( plot_rr, plot_phi, plot_theta, r_comet, Q_gas, v_gas, a, alpha, gamma, jet );
-    plot_ne = CometReal_OneOverRgamma( plot_rr, plot_phi, plot_theta, Q_gas, gamma_gas );
+    plot_ne = CometIonosphere( plot_rr, plot_phi, plot_theta, r_comet, Q_gas, v_gas, a, alpha, gamma, jet );
+%     plot_ne = CometReal_OneOverRgamma( plot_rr, plot_phi, plot_theta, Q_gas, gamma_gas );
     xslice = 0;   
     yslice = 0;
     zslice = 0;
+    plot_ne(1:100,1:100,1)
     slice(ha2, xx/1000, yy/1000, zz/1000,log10(plot_ne/1e6),xslice,yslice,zslice)
+    %, 'EdgeColor', 'none'      % zwarte kotjes weg?
     view(3)
     hold( ha2, 'on' );
     idx = round(n_t/2);
@@ -155,7 +157,7 @@ function [] = RadioSounding_Core( algo )
         -r_A(idx).*sind(theta_A(idx)).*cosd(phi_A(idx))/1000, r_A(idx).*sind(theta_A(idx)).*sind(phi_A(idx))/1000, r_A(idx).*cosd(theta_A(idx))/1000, 'bo', ...
         -r_B1(idx).*sind(theta_B1(idx)).*cosd(phi_B1(idx))/1000, r_B1(idx).*sind(theta_B1(idx)).*sind(phi_B1(idx))/1000, r_B1(idx).*cosd(theta_B1(idx))/1000, 'go', ...
         -r_B2(idx).*sind(theta_B2(idx)).*cosd(phi_B2(idx))/1000, r_B2(idx).*sind(theta_B2(idx)).*sind(phi_B2(idx))/1000, r_B2(idx).*cosd(theta_B2(idx))/1000, 'ro', ...
-        'LineWidth', line_width, 'MarkerSize', marker_size ...
+        'LineWidth', line_width, 'MarkerSize', marker_size...
     );
     hxl = get( ha2, 'XLabel' );
     set( hxl, 'String', '$x$ [km]', 'Interpreter', 'latex', 'FontSize', font_size );
@@ -332,46 +334,78 @@ function f = CometReal_OneOverRgamma( r, phi, theta, Q, gamma )
 end
 
 function q_factor = JetEnhancement( phi, theta, jet )
+%product van de gaussiaan in de phi en gaussiaan in de theta richting?
+% 1 hoek (bolhoek) en daar de gaussiaan
     % Unpack jet-related data
-    f_jet = jet.f;
-%     theta_jet = -jet.theta;
-%     dtheta_jet = jet.dtheta;
+    f_jet = jet.f; %niet in absolute termen (zoveel deeltjes per seconde), maar een factor tov wat we normaal hebben (relatief tov Q_gas)
+    theta_jet = jet.theta;
     phi_jet = jet.phi;
-    dphi_jet = jet.dphi;
+    dangle_jet = jet.dphi; %change name in parameters
     
     q_factor = ones(size(phi));
+
+    [x,y,z] = SphericalToCartesian(1, phi, theta);
     
     n_jet = length(jet.f);
     for i=1:n_jet
         % Compute angular distance, but beware of the periodicity jump
-        phi_angular_separation = phi+180-phi_jet(i);
-        phi_angular_separation_alt = phi_angular_separation-360;
-        test = ( abs(phi_angular_separation_alt) < abs(phi_angular_separation) );
-        phi_angular_separation(test) = phi_angular_separation_alt(test);
+        [xjet,yjet,zjet] = SphericalToCartesian(1, phi_jet(i), theta_jet(i));
+        % (dangle) hoek tussen twee richtingsvectoren (scalair product) (cos ->
+        % hoek)
+        %dangle = boogcosinus van scalair product
 
-%         theta_angular_separation = theta+180-theta_jet(i);
-%         theta_angular_separation_alt = theta_angular_separation-360;
-%         test = ( abs(theta_angular_separation_alt) < abs(theta_angular_separation) );
-%         theta_angular_separation(test) = theta_angular_separation_alt(test);
 
         % Compute jet density enhancement factor
-        q_factor = q_factor + f_jet(i) * exp( -(phi_angular_separation/dphi_jet(i)).^2 );
-%         q_factor = q_factor + f_jet(i) * exp( -((phi_angular_separation/dphi_jet(i)).*(theta_angular_separation/dtheta_jet(i)).^2).^2 );
+        %q_factor = q_factor + f_jet(i) * exp( -(phi_angular_separation/dphi_jet(i)).^2 );
+        q_factor = q_factor + f_jet(i) * exp( -(dangle/dangle_jet(i)).^2 );
+        %q_factor = q_factor + f_jet(i) * exp( -((phi_angular_separation/dphi_jet(i)).^2+(theta_angular_separation/dtheta_jet(i)).^2));
 
     end
 end
 
 function q_gas = GasProduction( phi, theta, r_comet, a, Q_gas, jet )
     
+    % sza Solar Zenith Angle (calculate with phi and theta) hoek tussen x
+    % as en r
+%     [x,y,z] = SphericalToCartesian(r_comet, phi, theta);
+    x = abs(r_comet .* sind(theta) .* cosd(phi));
+    y = abs(r_comet .* sind(theta) .* sind(phi));
+    z = abs(r_comet .* cosd(theta));
+    %sza = acosd();
+    a_inter = sqrt(y.^2 + z.^2);
+    b_inter = x;
+    c_inter = r_comet;
+    
+    inter = (a_inter.^2 - b_inter.^2 - c_inter^2) ./ (-2 * b_inter * c_inter);
+    sza = acosd(inter);
+    
+
     % Compute the flux on the nucleus surface at the subsolar point
-    q_factor = JetEnhancement( phi, theta, jet );
-    q_gas0 = ( 1 + a ) * q_factor .* Q_gas ./ ( 4 * pi * r_comet.^2 );
+    q_factor = 1; %JetEnhancement( phi, theta, jet );
+    q_gas0 = ( 1 + a ) * q_factor .* Q_gas ./ ( 4 * pi * r_comet.^2 ); %Total gas production devided by surface
     
     % Compute the flux on the nucleus surface at the base of the streamline
     % as a function of theta
-    q_gas = q_gas0 .* ( 1 + a*cosd(phi+180) ) / ( 1 + a );
+    q_gas = q_gas0 .* ( 1 + a*cosd(sza+180) ) / ( 1 + a ); %sza ipv phi
 
-    % Cardioid in 3D parameter curve (asymmetry)
+    %q_gas is hier juist moesten er geen jets zij
+end
+
+function q_gas = GasProductionNormalized( phi, theta, r_comet, a, Q_gas, jet )
+    q_gas = GasProduction(phi,theta,r_comet,a,Q_gas,jet);
+    %tweede routine (gasproductionnormalized) => 
+    %integratie van ganse gas emissiepatroon (over alle richtingen van
+    %q_gas)
+    %verschil tussen dit en Q_gas gaat zichtbaar zijn
+    %met welke factor is er een verschil? -> delen door die factor
+    %(corrigeren)
+    
+    %GasProduction oproepen voor alle phi en theta (dubbele bepaalde integraal in phi en
+    %theta in radialen)
+    %het eindresultaat
+
+    % Cardioid in 3D parameter curve (asymmetry) => kan gebruiken als
+    % visualisatie van de asymmetrie (isodensity oppervlak)
 %     funx = @(u,v) cos(u).*((1+a*cos(u))/(1+a));
 %     funy = @(u,v) sin(u).*((1+a*cos(u))/(1+a)).*cos(v);
 %     funz = @(u,v) sin(u).*((1+a*cos(u))/(1+a)).*sin(v); 
@@ -383,13 +417,12 @@ function n_e = CometIonosphere( r, phi, theta, r_comet, Q_gas, v_gas, a, alpha, 
     % Routine that computes total electron density as a function of theta and r
 
     % Gas production at the surface
-    q_gas = GasProduction( phi, theta, r_comet, a, Q_gas, jet );
+    q_gas = GasProductionNormalized( phi, theta, r_comet, a, Q_gas, jet );
     
-    % Ionospheric charge density
-    % Based on t => add rotation
+    %n_n = q_gas / v_gas;
     n_e = ...
-        ( r_comet^(2*gamma) * alpha / ( (3-2*gamma)* v_gas^(gamma+1) ) ) ...
-        * q_gas.^gamma .* ( r - r_comet ).^(3-2*gamma) ./ r.^2;
+        ( r_comet^(2*gamma) * alpha / ( (3-2*gamma) .* v_gas^(gamma+1) ) ) ...
+        .* q_gas.^gamma .* ( r - r_comet ).^(3-2*gamma) ./ r.^2;
 end
 
 function f = CometModel_OneOverRgamma( r, phi, Q, gamma ) 
