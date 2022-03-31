@@ -16,11 +16,3 @@
 % 
 % dot(a, b)
 
-% v1 =  [1 2 3] 
-% [X,Y,Z] = meshgrid( linspace(-5,5,5), linspace(-5,5,5),  linspace(-5,5,5))
-% x = X(:) ; y = Y(:) ; z = Z(:);
-% v2 = [x y z];
-% d = sum(v1.*v2,2) ;
-% A = reshape(d,size(X))
-
-
