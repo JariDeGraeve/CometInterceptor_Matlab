@@ -34,8 +34,8 @@ function [] = RadioSounding_Core( algo )
     gamma = 0.8;               % ionization rate exponent, dimensionless
     alpha = 0.00002;           % ionization rate, in 1/s
     a = 0.8;                   % gas coma asymmetry factor, dimensionless
-    theta_jet = [ 90,10];       % polar angle of center of gas jet, in degrees
-    phi_jet = [0, 20];        % azimuth angle of center of gas jet, in degrees
+    theta_jet = [ 90,60];       % polar angle of center of gas jet, in degrees
+    phi_jet = [50, 0];        % azimuth angle of center of gas jet, in degrees
     dangle_jet = [10, 20];     % angular half-width of gas jet, in degrees
     f_jet = [3,5];             % density contrast in jet, dimensionless
 %    sc_inclination = 0;        % inclination of orbit
@@ -139,7 +139,7 @@ function [] = RadioSounding_Core( algo )
     plot_theta = atan2d(sqrt(xx.^2 + yy.^2), zz);
     plot_ne = CometIonosphere( plot_rr, plot_phi, plot_theta, r_comet, Q_gas, v_gas, a, alpha, gamma, jet );
 %     plot_ne = CometReal_OneOverRgamma( plot_rr, plot_phi, plot_theta, Q_gas, gamma_gas );
-    xslice = 0;   
+    xslice = [];   
     yslice = 0;
     zslice = 0;
     slices = slice(ha2, xx/1000, yy/1000, zz/1000,log10(plot_ne/1e6),xslice,yslice,zslice);
@@ -172,6 +172,7 @@ function [] = RadioSounding_Core( algo )
         'YTick', ...
             log10( ...
                 [ ...
+                    0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, ...
                     0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, ...
                     1, 2, 3, 4, 5, 6, 7, 8, 9, ...
                     10, 20, 30, 40, 50, 60, 70, 80, 90, ...
@@ -184,6 +185,7 @@ function [] = RadioSounding_Core( algo )
         'YTickLabel', ...
             { ...
                 '', '', '', '', '', '', '', '', '', ...
+                '10^{-1}', '', '', '', '', '', '', '', '', ...
                 '10^0', '', '', '', '', '', '', '', '', ...
                 '10^1', '', '', '', '', '', '', '', '', ...
                 '10^2', '', '', '', '', '', '', '', '', ...
@@ -205,7 +207,7 @@ function [] = RadioSounding_Core( algo )
         set_t = { t };
         set_r = { r_A };
         set_phi = { phi_A };
-        set_f = { f_A_obs };
+        set_f = { f_A_obs; f_B1_obs };
         set_df = { f_A_obs * rel_error };    
         [ gamma_0A, dgamma_0A, Q_0A, dQ_0A ] = ...
             FindSolution_OneOverRgamma( ...
@@ -380,27 +382,21 @@ function q_gas = GasProduction( phi, theta, r_comet, a, Q_gas, jet )
     % Compute the flux on the nucleus surface at the subsolar point
     q_factor = JetEnhancement( phi, theta, jet );
     q_gas0 = ( 1 + a ) * q_factor .* Q_gas ./ ( 4 * pi * r_comet.^2 ); %Total gas production devided by surface
-    
+
     % Compute the flux on the nucleus surface at the base of the streamline
     % as a function of theta
     q_gas = q_gas0 .* ( 1 + a*cosd(sza+180) ) / ( 1 + a ); %sza ipv phi
 end
 
 function q_gas = GasProductionNormalized( phi, theta, r_comet, a, Q_gas, jet )
+    
+    % Unnormalized gas production
     q_gas0 = GasProduction(phi,theta,r_comet,a,Q_gas,jet);
-    
-    
-    t = Q_gas/q_gas;
-    %tweede routine (gasproductionnormalized) => 
-    %integratie van ganse gas emissiepatroon (over alle richtingen van
-    %q_gas)
-    %verschil tussen dit en Q_gas gaat zichtbaar zijn
-    %met welke factor is er een verschil? -> delen door die factor
-    %(corrigeren)
-    
-    %GasProduction oproepen voor alle phi en theta (dubbele bepaalde integraal in phi en
-    %theta in radialen)
-    %het eindresultaat
+    % Total gas production in model
+    integr = integral2(@(x,y) GasProduction(x,y,r_comet,a,Q_gas,jet), 0, 2*pi, 0, pi);
+    % Correct gas production so total gas production is Q_gas;
+    q_gas = q_gas0 * (Q_gas/integr);
+
 
     % Cardioid in 3D parameter curve (asymmetry) => kan gebruiken als
     % visualisatie van de asymmetrie (isodensity oppervlak)

@@ -204,15 +204,16 @@ function [] = RadioSounding_Core( algo )
     %% Problem 0A:
     % Derive Q, gamma from measurements by A global
     if algo.do_OneOverRgamma_A
-        set_t = { t };
-        set_r = { r_A };
-        set_phi = { phi_A };
-        set_f = { f_A_obs };
-        set_df = { f_A_obs * rel_error };    
+        set_t = { t; t};
+        set_r = { r_A; r_B1 };
+        set_phi = { phi_A; phi_B1 };
+        set_theta = { theta_A; theta_B1 };
+        set_f = { f_A_obs; f_B1_obs };
+        set_df = { f_A_obs * rel_error; f_B1_obs * rel_error };    
         [ gamma_0A, dgamma_0A, Q_0A, dQ_0A ] = ...
             FindSolution_OneOverRgamma( ...
                 false, Q_start, gamma_start, ...
-                set_t, set_r, set_phi, set_f, set_df, ...
+                set_t, set_r, set_phi, set_theta, set_f, set_df, ...
                 tolerance ...
             );
         fprintf( 'Problem 0A\n' );
@@ -275,7 +276,7 @@ function [] = RadioSounding_Core( algo )
     set( ha3B, 'YLim', [ 0.5, 1.5 ]*Q_gas );
 end
 
-function [ gamma, dgamma, Q, dQ ] = FindSolution_OneOverRgamma( debug, Q0, gamma0, t, r, phi, f, df, tol )
+function [ gamma, dgamma, Q, dQ ] = FindSolution_OneOverRgamma( debug, Q0, gamma0, t, r, phi, theta, f, df, tol )
     nr_of_sets = length(t);
     n = zeros( nr_of_sets, 1 );
     for k = 1:nr_of_sets
@@ -289,10 +290,11 @@ function [ gamma, dgamma, Q, dQ ] = FindSolution_OneOverRgamma( debug, Q0, gamma
             't', {t}, ...
             'r', {r}, ...
             'phi', {phi}, ...
+            'theta', {theta}, ...
             'f', {f}, ...
             'df', {df} ...
         );
-    x0 = [ gamma0; log(Q0) ];
+    x0 = [ gamma0; log(Q0) ];   % log is natural logarithm (ln(Q0))
     sx = [ 0.1; 1 ];
     [ x, dx ] = ...
         expl_optimization( [], 'FindSolution_OneOverRgamma', x0, sx, tol, @TargetFunction_OneOverRgamma, data, 'enhanced', 'silent' );
@@ -315,7 +317,7 @@ function F = TargetFunction_OneOverRgamma( x, data )
         F = 0;
         f_model = cell( size(data.f) );
         for k = 1:data.nr_of_sets
-            f_model{k} = CometModel_OneOverRgamma( data.r{k}, data.phi{k}, Q, gamma );
+            f_model{k} = CometModel_OneOverRgamma( data.r{k}, data.phi{k}, data.theta{k}, Q, gamma );
             F = F + ...
                 sum( ...
                     ( ( data.f{k} - f_model{k} ) ./ data.df{k} ).^2 ...
@@ -419,7 +421,7 @@ function n_e = CometIonosphere( r, phi, theta, r_comet, Q_gas, v_gas, a, alpha, 
         .* q_gas.^gamma .* ( r - r_comet ).^(3-2*gamma) ./ r.^2;
 end
 
-function f = CometModel_OneOverRgamma( r, phi, Q, gamma ) 
+function f = CometModel_OneOverRgamma( r, phi, theta, Q, gamma ) 
     % Routine that computes the power law model
     % f = Q / r^gamma
     f = Q ./ r.^(gamma);
