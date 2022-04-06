@@ -20,7 +20,7 @@ function [] = RadioSounding_Core( algo )
     % Physical parameters
     r_comet = 2000;            % comet radius, in m
     Q_gas_kg = 1000;           % gas production rate, in kg/s
-    m_ave = 18 * 1.6e-27;      % average neutral gas particle mass, in kg/particle
+    m_ave = 18 * 1.6e-27;      % average neutral gas particle mass (relative mass water * atomic mass unit), in kg/particle
     v_gas = 1000;              % neutral gas speed, in m/s
     D_ca_A = 1000000;          % distance at closest approach of A, in m
     t_ca_A = 0;                % time at closest approach of A, in s
@@ -73,6 +73,9 @@ function [] = RadioSounding_Core( algo )
 %     f_B1 = CometReal_OneOverRgamma( r_B1, phi_B1, theta_B1, Q_gas, gamma_gas );
 %     f_B2 = CometReal_OneOverRgamma( r_B2, phi_B2, theta_B2, Q_gas, gamma_gas );
 
+    rng(1);
+    % Add lots of random little jets to randomize the environment
+    theta_rjets = ().*rand(N,1).
     jet = struct( 'theta', theta_jet, 'phi', phi_jet, 'dangle', dangle_jet ,'f', f_jet );
 %     % Conditions in ionosphere along trajectories
     f_A = CometIonosphere( r_A, phi_A, theta_A, r_comet, Q_gas, v_gas, a, alpha, gamma, jet, t );
@@ -82,7 +85,7 @@ function [] = RadioSounding_Core( algo )
     n_t = length(r_A);
     
     %% Generate measurements with noise
-    rng(1);
+%     rng(1);
     f_A_obs = f_A .* ( 1 + rel_error * randn(size(f_A)) );
     f_B1_obs = f_B1 .* ( 1 + rel_error * randn(size(f_A)) );
     f_B2_obs = f_B2 .* ( 1 + rel_error * randn(size(f_A)) );
@@ -139,23 +142,23 @@ function [] = RadioSounding_Core( algo )
     plot_theta = atan2d(sqrt(xx.^2 + yy.^2), zz);
     plot_ne = CometIonosphere( plot_rr, plot_phi, plot_theta, r_comet, Q_gas, v_gas, a, alpha, gamma, jet );
 %     plot_ne = CometReal_OneOverRgamma( plot_rr, plot_phi, plot_theta, Q_gas, gamma_gas );
-    xslice = [];   
+    xslice = 0;   
     yslice = 0;
     zslice = 0;
-    slices = slice(ha2, xx/1000, yy/1000, zz/1000,log10(plot_ne/1e6),xslice,yslice,zslice);
+    slices = slice(ha2, -xx/1000, yy/1000, zz/1000,log10(plot_ne/1e6),xslice,yslice,zslice);
     %, 'EdgeColor', 'none'      % zwarte kotjes weg?
     set(slices,'EdgeColor','none');
     view(3)
     hold( ha2, 'on' );
     idx = round(n_t/2);
     plot3( ha2, ...
-        -r_A.*sind(theta_A).*cosd(phi_A)/1000, r_A.*sind(theta_A).*sind(phi_A)/1000, r_A.*cosd(theta_A)/1000, 'b-', ...
-        -r_B1.*sind(theta_B1).*cosd(phi_B1)/1000, r_B1.*sind(theta_B1).*sind(phi_B1)/1000, r_B1.*cosd(theta_B1)/1000,'g-', ...
-        -r_B2.*sind(theta_B2).*cosd(phi_B2)/1000, r_B2.*sind(theta_B2).*sind(phi_B2)/1000, r_B2.*cosd(theta_B2)/1000,'r-', ...
+        r_A.*sind(theta_A).*cosd(phi_A)/1000, r_A.*sind(theta_A).*sind(phi_A)/1000, r_A.*cosd(theta_A)/1000, 'b-', ...
+        r_B1.*sind(theta_B1).*cosd(phi_B1)/1000, r_B1.*sind(theta_B1).*sind(phi_B1)/1000, r_B1.*cosd(theta_B1)/1000,'g-', ...
+        r_B2.*sind(theta_B2).*cosd(phi_B2)/1000, r_B2.*sind(theta_B2).*sind(phi_B2)/1000, r_B2.*cosd(theta_B2)/1000,'r-', ...
         0, 0, 0, 'ko', ...
-        -r_A(idx).*sind(theta_A(idx)).*cosd(phi_A(idx))/1000, r_A(idx).*sind(theta_A(idx)).*sind(phi_A(idx))/1000, r_A(idx).*cosd(theta_A(idx))/1000, 'bo', ...
-        -r_B1(idx).*sind(theta_B1(idx)).*cosd(phi_B1(idx))/1000, r_B1(idx).*sind(theta_B1(idx)).*sind(phi_B1(idx))/1000, r_B1(idx).*cosd(theta_B1(idx))/1000, 'go', ...
-        -r_B2(idx).*sind(theta_B2(idx)).*cosd(phi_B2(idx))/1000, r_B2(idx).*sind(theta_B2(idx)).*sind(phi_B2(idx))/1000, r_B2(idx).*cosd(theta_B2(idx))/1000, 'ro', ...
+        r_A(idx).*sind(theta_A(idx)).*cosd(phi_A(idx))/1000, r_A(idx).*sind(theta_A(idx)).*sind(phi_A(idx))/1000, r_A(idx).*cosd(theta_A(idx))/1000, 'bo', ...
+        r_B1(idx).*sind(theta_B1(idx)).*cosd(phi_B1(idx))/1000, r_B1(idx).*sind(theta_B1(idx)).*sind(phi_B1(idx))/1000, r_B1(idx).*cosd(theta_B1(idx))/1000, 'go', ...
+        r_B2(idx).*sind(theta_B2(idx)).*cosd(phi_B2(idx))/1000, r_B2(idx).*sind(theta_B2(idx)).*sind(phi_B2(idx))/1000, r_B2(idx).*cosd(theta_B2(idx))/1000, 'ro', ...
         'LineWidth', line_width, 'MarkerSize', marker_size...
     );
     hxl = get( ha2, 'XLabel' );
@@ -204,15 +207,16 @@ function [] = RadioSounding_Core( algo )
     %% Problem 0A:
     % Derive Q, gamma from measurements by A global
     if algo.do_OneOverRgamma_A
-        set_t = { t };
-        set_r = { r_A };
-        set_phi = { phi_A };
+        set_t = { t; t};
+        set_r = { r_A; r_B1 };
+        set_phi = { phi_A; phi_B1 };
+        set_theta = { theta_A; theta_B1 };
         set_f = { f_A_obs; f_B1_obs };
-        set_df = { f_A_obs * rel_error };    
+        set_df = { f_A_obs * rel_error; f_B1_obs * rel_error };    
         [ gamma_0A, dgamma_0A, Q_0A, dQ_0A ] = ...
             FindSolution_OneOverRgamma( ...
                 false, Q_start, gamma_start, ...
-                set_t, set_r, set_phi, set_f, set_df, ...
+                set_t, set_r, set_phi, set_theta, set_f, set_df, ...
                 tolerance ...
             );
         fprintf( 'Problem 0A\n' );
@@ -260,8 +264,10 @@ function [] = RadioSounding_Core( algo )
         'YLim', [ 0.005, 2000 ]*Q_gas, ...
         'YScale', 'log', ...
         'YTickMode', 'manual', ...
-        'YTick', [ 10, 100, 1000, 10000, 100000, 1000000 ], ...
-        'YTickLabel',{ '10^{1}', '10^{2}', '10^{3}', '10^{4}', '10^{5}', '10^{6}' } ...
+        'YTick', [ 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000 ...
+                    1000000000, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15, 1e16, 1e17, 1e18], ...
+        'YTickLabel',{ '10^{1}', '10^{2}', '10^{3}', '10^{4}', '10^{5}', '10^{6}', '10^{7}', '10^{8}' ...
+                   '10^{9}', '10^{10}', '10^{11}', '10^{12}', '10^{13}', '10^{14}', '10^{15}', '10^{16}', '10^{17}', '10^{18}'} ...
     );
     hold( ha3B, 'on' );
     plot( ha3B, t, Q_gas*ones(size(t)), '-', 'Color', [ 0 0 0 ], 'LineWidth', line_width );
@@ -272,10 +278,10 @@ function [] = RadioSounding_Core( algo )
     set( hxl, 'String', '$t$ [s]', 'Interpreter', 'latex', 'FontSize', font_size );
     hyl = get( ha3B, 'YLabel' );
     set( hyl, 'String', '$Q$ [kg/s$^{-1}$]', 'Interpreter', 'latex', 'FontSize', font_size );
-    set( ha3B, 'YLim', [ 0.5, 1.5 ]*Q_gas );
+    set( ha3B, 'YLim', [ 1e-12, 10 ]*Q_gas );
 end
 
-function [ gamma, dgamma, Q, dQ ] = FindSolution_OneOverRgamma( debug, Q0, gamma0, t, r, phi, f, df, tol )
+function [ gamma, dgamma, Q, dQ ] = FindSolution_OneOverRgamma( debug, Q0, gamma0, t, r, phi, theta, f, df, tol )
     nr_of_sets = length(t);
     n = zeros( nr_of_sets, 1 );
     for k = 1:nr_of_sets
@@ -289,10 +295,11 @@ function [ gamma, dgamma, Q, dQ ] = FindSolution_OneOverRgamma( debug, Q0, gamma
             't', {t}, ...
             'r', {r}, ...
             'phi', {phi}, ...
+            'theta', {theta}, ...
             'f', {f}, ...
             'df', {df} ...
         );
-    x0 = [ gamma0; log(Q0) ];
+    x0 = [ gamma0; log(Q0) ];   % log is natural logarithm (ln(Q0))
     sx = [ 0.1; 1 ];
     [ x, dx ] = ...
         expl_optimization( [], 'FindSolution_OneOverRgamma', x0, sx, tol, @TargetFunction_OneOverRgamma, data, 'enhanced', 'silent' );
@@ -315,7 +322,7 @@ function F = TargetFunction_OneOverRgamma( x, data )
         F = 0;
         f_model = cell( size(data.f) );
         for k = 1:data.nr_of_sets
-            f_model{k} = CometModel_OneOverRgamma( data.r{k}, data.phi{k}, Q, gamma );
+            f_model{k} = CometModel_OneOverRgamma( data.r{k}, data.phi{k}, data.theta{k}, Q, gamma );
             F = F + ...
                 sum( ...
                     ( ( data.f{k} - f_model{k} ) ./ data.df{k} ).^2 ...
@@ -385,7 +392,7 @@ function q_gas = GasProduction( phi, theta, r_comet, a, Q_gas, jet )
 
     % Compute the flux on the nucleus surface at the base of the streamline
     % as a function of theta
-    q_gas = q_gas0 .* ( 1 + a*cosd(sza+180) ) / ( 1 + a ); %sza ipv phi
+    q_gas = q_gas0 .* ( 1 + a*cosd(sza+180) ) / ( 1 + a ); 
 end
 
 function q_gas = GasProductionNormalized( phi, theta, r_comet, a, Q_gas, jet )
@@ -419,7 +426,7 @@ function n_e = CometIonosphere( r, phi, theta, r_comet, Q_gas, v_gas, a, alpha, 
         .* q_gas.^gamma .* ( r - r_comet ).^(3-2*gamma) ./ r.^2;
 end
 
-function f = CometModel_OneOverRgamma( r, phi, Q, gamma ) 
+function f = CometModel_OneOverRgamma( r, phi, theta, Q, gamma ) 
     % Routine that computes the power law model
     % f = Q / r^gamma
     f = Q ./ r.^(gamma);

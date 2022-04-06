@@ -73,7 +73,14 @@ function [] = RadioSounding_Core( algo )
 %     f_B1 = CometReal_OneOverRgamma( r_B1, phi_B1, theta_B1, Q_gas, gamma_gas );
 %     f_B2 = CometReal_OneOverRgamma( r_B2, phi_B2, theta_B2, Q_gas, gamma_gas );
 
-    jet = struct( 'theta', theta_jet, 'phi', phi_jet, 'dangle', dangle_jet ,'f', f_jet );
+    rng(1);
+    % Add lots of random little jets to randomize the environment
+    theta_rjets = (180).*rand(1,50);
+    phi_rjets = -100 + (100 + 100).*rand(1,50);
+    dangle_rjets = 3 + (6-3).*rand(1,50);
+    f_rjets = 0.1 + (1-0.1).*rand(1,50);
+
+    jet = struct( 'theta', [theta_jet,theta_rjets], 'phi', [phi_jet,phi_rjets], 'dangle', [dangle_jet,dangle_rjets] ,'f', [f_jet,f_rjets] );
 %     % Conditions in ionosphere along trajectories
     f_A = CometIonosphere( r_A, phi_A, theta_A, r_comet, Q_gas, v_gas, a, alpha, gamma, jet, t );
     f_B1 = CometIonosphere( r_B1, phi_B1, theta_B1, r_comet, Q_gas, v_gas, a, alpha, gamma, jet, t );
@@ -82,7 +89,7 @@ function [] = RadioSounding_Core( algo )
     n_t = length(r_A);
     
     %% Generate measurements with noise
-    rng(1);
+%     rng(1);
     f_A_obs = f_A .* ( 1 + rel_error * randn(size(f_A)) );
     f_B1_obs = f_B1 .* ( 1 + rel_error * randn(size(f_A)) );
     f_B2_obs = f_B2 .* ( 1 + rel_error * randn(size(f_A)) );
@@ -139,7 +146,7 @@ function [] = RadioSounding_Core( algo )
     plot_theta = atan2d(sqrt(xx.^2 + yy.^2), zz);
     plot_ne = CometIonosphere( plot_rr, plot_phi, plot_theta, r_comet, Q_gas, v_gas, a, alpha, gamma, jet );
 %     plot_ne = CometReal_OneOverRgamma( plot_rr, plot_phi, plot_theta, Q_gas, gamma_gas );
-    xslice = [];   
+    xslice = 0;   
     yslice = 0;
     zslice = 0;
     slices = slice(ha2, -xx/1000, yy/1000, zz/1000,log10(plot_ne/1e6),xslice,yslice,zslice);
@@ -384,12 +391,12 @@ function q_gas = GasProduction( phi, theta, r_comet, a, Q_gas, jet )
     sza = SolarZenithAngle(phi, theta);
 
     % Compute the flux on the nucleus surface at the subsolar point
-    q_factor = 1;%JetEnhancement( phi, theta, jet );
+    q_factor = JetEnhancement( phi, theta, jet );
     q_gas0 = ( 1 + a ) * q_factor .* Q_gas ./ ( 4 * pi * r_comet.^2 ); %Total gas production devided by surface
 
     % Compute the flux on the nucleus surface at the base of the streamline
     % as a function of theta
-    q_gas = q_gas0 .* ( 1 + a*cosd(sza+180) ) / ( 1 + a ); %sza ipv phi
+    q_gas = q_gas0 .* ( 1 + a*cosd(sza+180) ) / ( 1 + a ); 
 end
 
 function q_gas = GasProductionNormalized( phi, theta, r_comet, a, Q_gas, jet )
