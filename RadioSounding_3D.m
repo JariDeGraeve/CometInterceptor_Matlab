@@ -17,6 +17,10 @@ end
 function [] = RadioSounding_Core( algo )
     
     %% Parameters
+    % Debug script parameters
+    asymmety_present = 1;
+    jets_present = 1;
+
     % Physical parameters
     r_comet = 2000;            % comet radius, in m
     Q_gas_kg = 1000;           % gas production rate, in kg/s
@@ -25,19 +29,31 @@ function [] = RadioSounding_Core( algo )
     D_ca_A = 1000000;          % distance at closest approach of A, in m
     t_ca_A = 0;                % time at closest approach of A, in s
 
-    delta_B1 = [-183000, 150000, -766000];   % coordinates spacecraft B1 relative to A, in m
-    delta_B2 = [-233000, -350000, -466000];  % coordinates spacecraft B2 relative to A, in m
+%     delta_B1 = [-183000, 150000, -766000];   % coordinates spacecraft B1 relative to A, in m
+%     delta_B2 = [-233000, -350000, -466000];  % coordinates spacecraft B2 relative to A, in m
+    delta_B1 = [-170000, 270000, -300000];   % coordinates spacecraft B1 relative to A, in m
+    delta_B2 = [50000, -390000, -200000];   % coordinates spacecraft B1 relative to A, in m
+%     delta_B2 = [-627000, -577000, -127000];  % coordinates spacecraft B2 relative to A, in m
 
     V_flyby = [42000, 42000, 0];  % flyby speedvector, in m/s
     phi_ca = 30;               % azimuth angle at closest approach, in degrees
     theta_ca = 30;             % polar angle at closest approach, in degrees
     gamma = 0.8;               % ionization rate exponent, dimensionless
     alpha = 0.00002;           % ionization rate, in 1/s
-    a = 0.8;                   % gas coma asymmetry factor, dimensionless
-    theta_jet = [ 90,60];       % polar angle of center of gas jet, in degrees
-    phi_jet = [50, 0];        % azimuth angle of center of gas jet, in degrees
-    dangle_jet = [10, 20];     % angular half-width of gas jet, in degrees
-    f_jet = [3,5];             % density contrast in jet, dimensionless
+    a = 0;                   % gas coma asymmetry factor, dimensionless
+    if(asymmety_present)
+        a = 0.8;
+    end
+    theta_jet = [];       % polar angle of center of gas jet, in degrees
+    phi_jet = [];        % azimuth angle of center of gas jet, in degrees
+    dangle_jet = [];     % angular half-width of gas jet, in degrees
+    f_jet = [];             % density contrast in jet, dimensionless
+    if(jets_present)
+        theta_jet = [90,60, 80];       
+        phi_jet = [50, 0, 50];        
+        dangle_jet = [5, 15, 10];
+        f_jet = [3,5,6];
+    end
 %    sc_inclination = 0;        % inclination of orbit
     rel_error = 0.05;          % relative measurement error, dimensionless
     t0 = 150;                  % limits of time interval, in s
@@ -75,16 +91,17 @@ function [] = RadioSounding_Core( algo )
 
     rng(1);
     % Add lots of random little jets to randomize the environment
-    theta_rjets = (180).*rand(1,50);
-    phi_rjets = -100 + (100 + 100).*rand(1,50);
-    dangle_rjets = 3 + (6-3).*rand(1,50);
-    f_rjets = 0.1 + (1-0.1).*rand(1,50);
+%     theta_rjets = (180).*rand(1,50);
+%     phi_rjets = -100 + (100 + 100).*rand(1,50);
+%     dangle_rjets = 3 + (6-3).*rand(1,50);
+%     f_rjets = 0.1 + (1-0.1).*rand(1,50);
 
-    jet = struct( 'theta', [theta_jet,theta_rjets], 'phi', [phi_jet,phi_rjets], 'dangle', [dangle_jet,dangle_rjets] ,'f', [f_jet,f_rjets] );
+%     jet = struct( 'theta', [theta_jet,theta_rjets], 'phi', [phi_jet,phi_rjets], 'dangle', [dangle_jet,dangle_rjets] ,'f', [f_jet,f_rjets] );
+    jet = struct( 'theta', theta_jet, 'phi', phi_jet, 'dangle', dangle_jet ,'f', f_jet );
 %     % Conditions in ionosphere along trajectories
-    f_A = CometIonosphere( r_A, phi_A, theta_A, r_comet, Q_gas, v_gas, a, alpha, gamma, jet, t );
-    f_B1 = CometIonosphere( r_B1, phi_B1, theta_B1, r_comet, Q_gas, v_gas, a, alpha, gamma, jet, t );
-    f_B2 = CometIonosphere( r_B2, phi_B2, theta_B2, r_comet, Q_gas, v_gas, a, alpha, gamma, jet, t );
+    f_A = CometIonosphere( r_A, phi_A, theta_A, r_comet, Q_gas, v_gas, a, jet );
+    f_B1 = CometIonosphere( r_B1, phi_B1, theta_B1, r_comet, Q_gas, v_gas, a, jet );
+    f_B2 = CometIonosphere( r_B2, phi_B2, theta_B2, r_comet, Q_gas, v_gas, a, jet );
     
     n_t = length(r_A);
     
@@ -144,14 +161,15 @@ function [] = RadioSounding_Core( algo )
     plot_rr = sqrt( xx.^2 + yy.^2 + zz.^2);
     plot_phi = atan2d( yy, xx );
     plot_theta = atan2d(sqrt(xx.^2 + yy.^2), zz);
-    plot_ne = CometIonosphere( plot_rr, plot_phi, plot_theta, r_comet, Q_gas, v_gas, a, alpha, gamma, jet );
-%     plot_ne = CometReal_OneOverRgamma( plot_rr, plot_phi, plot_theta, Q_gas, gamma_gas );
+    plot_nn = CometIonosphere( plot_rr, plot_phi, plot_theta, r_comet, Q_gas, v_gas, a, jet );
+%      plot_nn = CometReal_OneOverRgamma( plot_rr, plot_phi, plot_theta, Q_gas, gamma_gas );
     xslice = 0;   
     yslice = 0;
     zslice = 0;
-    slices = slice(ha2, -xx/1000, yy/1000, zz/1000,log10(plot_ne/1e6),xslice,yslice,zslice);
-    %, 'EdgeColor', 'none'      % zwarte kotjes weg?
-    set(slices,'EdgeColor','none');
+    slices = slice(ha2, -xx/1000, yy/1000, zz/1000,log10(plot_nn/1e6),xslice,yslice,zslice);
+    set(slices,'EdgeColor','none', 'FaceColor', 'interp');
+    mx = max(plot_nn(:)/1e6);
+    mn = min(plot_nn(:)/1e6);
     view(3)
     hold( ha2, 'on' );
     idx = round(n_t/2);
@@ -179,6 +197,14 @@ function [] = RadioSounding_Core( algo )
         'YTick', ...
             log10( ...
                 [ ...
+                    1e-15, 2e-15, 3e-15, 4e-15, 5e-15, 6e-15, 7e-15, 8e-15, 9e-15 ...
+                    1e-14, 2e-14, 3e-14, 4e-14, 5e-14, 6e-14, 7e-14, 8e-14, 9e-14 ...
+                    1e-13, 2e-13, 3e-13, 4e-13, 5e-13, 6e-13, 7e-13, 8e-13, 9e-13 ...
+                    1e-12, 2e-12, 3e-12, 4e-12, 5e-12, 6e-12, 7e-12, 8e-12, 9e-12 ...
+                    1e-11, 2e-11, 3e-11, 4e-11, 5e-11, 6e-11, 7e-11, 8e-11, 9e-11 ...
+                    1e-10, 2e-10, 3e-10, 4e-10, 5e-10, 6e-10, 7e-10, 8e-10, 9e-10 ...
+                    1e-9, 2e-9, 3e-9, 4e-9, 5e-9, 6e-9, 7e-9, 8e-9, 9e-9 ...
+                    1e-8, 2e-8, 3e-8, 4e-8, 5e-8, 6e-8, 7e-8, 8e-8, 9e-8 ...
                     0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, ...
                     0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, ...
                     1, 2, 3, 4, 5, 6, 7, 8, 9, ...
@@ -191,6 +217,14 @@ function [] = RadioSounding_Core( algo )
             ), ...
         'YTickLabel', ...
             { ...
+                '10^{-15}', '', '', '', '', '', '', '', '', ...
+                '10^{-14}', '', '', '', '', '', '', '', '', ...
+                '10^{-13}', '', '', '', '', '', '', '', '', ...
+                '10^{-12}', '', '', '', '', '', '', '', '', ...
+                '10^{-11}', '', '', '', '', '', '', '', '', ...
+                '10^{-10}', '', '', '', '', '', '', '', '', ...
+                '10^{-9}', '', '', '', '', '', '', '', '', ...
+                '10^{-8}', '', '', '', '', '', '', '', '', ...
                 '', '', '', '', '', '', '', '', '', ...
                 '10^{-1}', '', '', '', '', '', '', '', '', ...
                 '10^0', '', '', '', '', '', '', '', '', ...
@@ -404,30 +438,20 @@ function q_gas = GasProductionNormalized( phi, theta, r_comet, a, Q_gas, jet )
     % Unnormalized gas production
     q_gas0 = GasProduction(phi,theta,r_comet,a,Q_gas,jet);
     % Total gas production in model
-    integr = integral2(@(x,y) GasProduction(x,y,r_comet,a,Q_gas,jet), 0, 2*pi, 0, pi);
+    integr = integral2(@(phi,theta) GasProduction(phi,theta,r_comet,a,Q_gas,jet) .* sin(theta) .* r_comet.^2, 0, 2*pi, 0, pi);
     % Correct gas production so total gas production is Q_gas;
     q_gas = q_gas0 * (Q_gas/integr);
 
-
-    % Cardioid in 3D parameter curve (asymmetry) => kan gebruiken als
-    % visualisatie van de asymmetrie (isodensity oppervlak)
-%     funx = @(u,v) cos(u).*((1+a*cos(u))/(1+a));
-%     funy = @(u,v) sin(u).*((1+a*cos(u))/(1+a)).*cos(v);
-%     funz = @(u,v) sin(u).*((1+a*cos(u))/(1+a)).*sin(v); 
-%     fsurf(funx,funy,funz, [0 2*pi 0 pi])
-
 end
 
-function n_e = CometIonosphere( r, phi, theta, r_comet, Q_gas, v_gas, a, alpha, gamma, jet, t ) 
+function n_n = CometIonosphere( r, phi, theta, r_comet, Q_gas, v_gas, a, jet ) 
     % Routine that computes total electron density as a function of theta and r
 
     % Gas production at the surface
     q_gas = GasProductionNormalized( phi, theta, r_comet, a, Q_gas, jet );
     
-    %n_n = q_gas / v_gas;
-    n_e = ...
-        ( r_comet^(2*gamma) * alpha / ( (3-2*gamma) .* v_gas^(gamma+1) ) ) ...
-        .* q_gas.^gamma .* ( r - r_comet ).^(3-2*gamma) ./ r.^2;
+    n_n = q_gas ./ (v_gas * r .^2);
+
 end
 
 function f = CometModel_OneOverRgamma( r, phi, theta, Q, gamma ) 
