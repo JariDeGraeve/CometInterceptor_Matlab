@@ -3,12 +3,16 @@ function [] = RadioSounding_3D()
     % Algorithm selection
 %     algo = ...
 %         struct( ...
-%             'do_OneOverRgamma_A', true ... 
+%             'do_OneOverRgamma', true, ...
+%             'do_OneOverRgamma_time', true, ...
+%             'do_OneOverRgamma_sza', true ...
 %         );
     
     algo = ...
         struct( ...
-              'do_OneOverRgamma_A', true ... 
+              'do_OneOverRgamma', true, ...
+              'do_OneOverRgamma_time', true, ...
+              'do_OneOverRgamma_sza', true ...
         );
     RadioSounding_Core( algo );
     
@@ -60,8 +64,13 @@ function [] = RadioSounding_Core( algo )
     dt = 0.2;                  % measurement time resolution, in s
     
     % Numerical parameters
+    t0 = 150;                  % limits of time interval, in s
+    dt = 0.2;                  % measurement time resolution, in s
+    dt_homogeneity = 5;        % time homogeneity scale, in s
+    dsza_homogeneity = 1.0;  % theta homogeneity scale, in degrees
     tolerance = 1e-6;          % tolerance for solving optimization problem
-
+    dt_ls = 5;                 % time interval for which to compute least-squares solutions
+               
     % Plot parameters
     font_size = 14;
     marker_size = 8;
@@ -242,25 +251,106 @@ function [] = RadioSounding_Core( algo )
     Q_start = Q_gas*1.33;
     gamma_start = gamma_gas*1.25;
     
-    %% Problem 0A:
-    % Derive Q, gamma from measurements by A global
-    if algo.do_OneOverRgamma_A
-        set_t = { t; t};
-        set_r = { r_A; r_B1 };
-        set_phi = { phi_A; phi_B1 };
-        set_theta = { theta_A; theta_B1 };
-        set_f = { f_A_obs; f_B1_obs };
-        set_df = { f_A_obs * rel_error; f_B1_obs * rel_error };    
-        [ gamma_0A, dgamma_0A, Q_0A, dQ_0A ] = ...
+    %% Problem 0:
+    % Derive Q, gamma from measurements by A, B1 and B2 global
+    if algo.do_OneOverRgamma
+        set_t = { t; t; t};
+        set_r = { r_A; r_B1; r_B2 };
+        set_phi = { phi_A; phi_B1; phi_B2 };
+        set_theta = { theta_A; theta_B1; theta_B2 };
+        set_f = { f_A_obs; f_B1_obs; f_B2_obs };
+        set_df = { f_A_obs * rel_error; f_B1_obs * rel_error;  f_B2_obs * rel_error };    
+        [ gamma_0, dgamma_0, Q_0, dQ_0 ] = ...
             FindSolution_OneOverRgamma( ...
                 false, Q_start, gamma_start, ...
                 set_t, set_r, set_phi, set_theta, set_f, set_df, ...
                 tolerance ...
             );
-        fprintf( 'Problem 0A\n' );
+        fprintf( 'Problem 0\n' );
         fprintf( '\n' );
         fprintf( '      Q                             gamma\n' );
-        fprintf( '    : %12.6e +/- %12.6e  %10.6f +/- %10.6f\n', Q_0A, dQ_0A, gamma_0A, dgamma_0A );
+        fprintf( '    : %12.6e +/- %12.6e  %10.6f +/- %10.6f\n', Q_0, dQ_0, gamma_0, dgamma_0 );
+        fprintf( '\n' );
+    end
+
+    %% Problem 1:
+    % Derive Q, gamma from measurements by A, B1 and B2 at a given time
+    if algo.do_OneOverRgamma_time
+        t_ls = ( -t0 : dt_ls : t0 )';
+        n_t_ls = length(t_ls);
+        gamma_1 = zeros( n_t_ls, 1 );
+        dgamma_1 = zeros( n_t_ls, 1 );
+        Q_1 = zeros( n_t_ls, 1 );
+        dQ_1 = zeros( n_t_ls, 1 );
+        fprintf( 'Problem 1\n' );
+        fprintf( '\n' );
+        fprintf( '      Q                             gamma\n' );
+        for i = 1:n_t_ls
+            t_ref = t_ls(i);
+            [ factor, selection ] = HomogeneitySelection( t, t_ref, dt_homogeneity );           
+            set_t = { t(selection); t(selection); t(selection) };
+            set_r = { r_A(selection); r_B1(selection); r_B2(selection) };
+            set_theta = { theta_A(selection); theta_B1(selection); theta_B2(selection) };
+            set_phi = { phi_A(selection); phi_B1(selection); phi_B2(selection) };
+            set_f = { f_A_obs(selection); f_B1_obs(selection); f_B2_obs(selection) };
+            set_df = ...
+                { ...
+                    rel_error * f_A_obs(selection) .* factor(selection); ...
+                    rel_error * f_B1_obs(selection) .* factor(selection);  ...
+                    rel_error * f_B2_obs(selection) .* factor(selection)  ...
+                };
+
+            [ gamma_1(i), dgamma_1(i), Q_1(i), dQ_1(i) ] = ...
+                FindSolution_OneOverRgamma( ...
+                    false, Q_start, gamma_start, ...
+                    set_t, set_r, set_phi, set_theta, set_f, set_df, ...
+                    tolerance ...
+                );
+            fprintf( '    : %12.6e +/- %12.6e  %10.6f +/- %10.6f\n', Q_1(i)*m_ave, dQ_1(i)*m_ave, gamma_1(i), dgamma_1(i) );
+        end
+        fprintf( '\n' );
+    end
+
+    %% Problem 2:
+    % Derive Q, gamma from measurements by A, B1 and B2 at a given solar zenith angle
+    if algo.do_OneOverRgamma_sza
+        t_ls = ( -t0 : dt_ls : t0 )';
+        n_t_ls = length(t_ls);
+        gamma_2 = zeros( n_t_ls, 1 );
+        dgamma_2 = zeros( n_t_ls, 1 );
+        Q_2 = zeros( n_t_ls, 1 );
+        dQ_2 = zeros( n_t_ls, 1 );
+        fprintf( 'Problem 2\n' );
+        fprintf( '\n' );
+        fprintf( '      Q                             gamma\n' );
+        sza_A = SolarZenithAngle(phi_A, theta_A);
+        sza_B1 = SolarZenithAngle(phi_B1, theta_B1);
+        sza_B2 = SolarZenithAngle(phi_B2, theta_B2);
+        for i = 1:n_t_ls
+            t_ref = t_ls(i);
+            sza_ref = interp1( t, sza_A, t_ref );
+            [ factor_A, selection_A ] = HomogeneitySelection( sza_A, sza_ref, dsza_homogeneity );           
+            [ factor_B1, selection_B1 ] = HomogeneitySelection( sza_B1, sza_ref, dsza_homogeneity );           
+            [ factor_B2, selection_B2 ] = HomogeneitySelection( sza_B2, sza_ref, dsza_homogeneity );           
+            set_t = { t(selection_A); t(selection_B1); t(selection_B2) };
+            set_r = { r_A(selection_A); r_B1(selection_B1); r_B2(selection_B2) };
+            set_theta = { theta_A(selection_A); theta_B1(selection_B1); theta_B2(selection_B2) };
+            set_phi = { phi_A(selection_A); phi_B1(selection_B1); phi_B2(selection_B2) };
+            set_f = { f_A_obs(selection_A); f_B1_obs(selection_B1); f_B2_obs(selection_B2) };
+            set_df = ...
+                { ...
+                    rel_error * f_A_obs(selection_A) .* factor_A(selection_A); ...
+                    rel_error * f_B1_obs(selection_B1) .* factor_B1(selection_B1);  ...
+                    rel_error * f_B2_obs(selection_B2) .* factor_B2(selection_B2)  ...
+                };
+            [ gamma_2(i), dgamma_2(i), Q_2(i), dQ_2(i) ] = ...
+                FindSolution_OneOverRgamma( ...
+                    false, Q_start, gamma_start, ...
+                    set_t, set_r, set_phi, set_theta, set_f, set_df, ...
+                    tolerance ...
+                );
+            fprintf( '    : %12.6e +/- %12.6e  %10.6f +/- %10.6f\n', Q_2(i)*m_ave, dQ_2(i)*m_ave, gamma_2(i), dgamma_2(i) );
+        end
         fprintf( '\n' );
     end
     
@@ -289,8 +379,14 @@ function [] = RadioSounding_Core( algo )
         );
     hold( ha3A, 'on' );
     plot( ha3A, t, ones(size(t))*gamma_gas, '-', 'Color', [ 0 0 0 ], 'LineWidth', line_width );
-    if algo.do_OneOverRgamma_A
-        plot( ha3A, [ -1, 1 ]*t0, [ 1, 1]*gamma_0A, '-', 'Color', [ 0.6 0.6 0.6 ], 'LineWidth', 0.5*line_width );
+    if algo.do_OneOverRgamma
+        plot( ha3A, [ -1, 1 ]*t0, [ 1, 1]*gamma_0, '-', 'Color', [ 0.6 0.6 0.6 ], 'LineWidth', 0.5*line_width );
+    end
+    if algo.do_OneOverRgamma_time
+        plot( ha3A, t_ls, gamma_1, 'd-', 'Color', [ 0 0 1 ], 'MarkerSize', marker_size, 'LineWidth', 0.5*line_width );
+    end
+    if algo.do_OneOverRgamma_sza
+        plot( ha3A, t_ls, gamma_2, 'd-', 'Color', [ 0.5 0 0.5 ], 'MarkerSize', marker_size, 'LineWidth', 0.5*line_width );
     end
 %     hxl = get( ha3A, 'XLabel' );
 %     set( hxl, 'String', '$t$ [s]', 'Interpreter', 'latex', 'FontSize', font_size );
@@ -309,8 +405,14 @@ function [] = RadioSounding_Core( algo )
     );
     hold( ha3B, 'on' );
     plot( ha3B, t, Q_gas*ones(size(t)), '-', 'Color', [ 0 0 0 ], 'LineWidth', line_width );
-    if algo.do_OneOverRgamma_A
-        plot( ha3B, [ -1, 1 ]*t0, [ 1, 1]*Q_0A, '-', 'Color', [ 0.6 0.6 0.6 ], 'LineWidth', 0.5*line_width );
+    if algo.do_OneOverRgamma
+        plot( ha3B, [ -1, 1 ]*t0, [ 1, 1]*Q_0, '-', 'Color', [ 0.6 0.6 0.6 ], 'LineWidth', 0.5*line_width );
+    end
+    if algo.do_OneOverRgamma_time
+        plot( ha3B, t_ls, Q_1*m_ave, 'd-', 'Color', [ 0 0 1 ], 'MarkerSize', marker_size, 'LineWidth', 0.5*line_width );
+    end
+    if algo.do_OneOverRgamma_sza
+        plot( ha3B, t_ls, Q_2*m_ave, 'd-', 'Color', [ 0.5 0 0.5 ], 'MarkerSize', marker_size, 'LineWidth', 0.5*line_width );
     end
     hxl = get( ha3B, 'XLabel' );
     set( hxl, 'String', '$t$ [s]', 'Interpreter', 'latex', 'FontSize', font_size );
@@ -533,6 +635,12 @@ function [ r, phi, theta ] = FlybyTrajectory( Vflyby, D_ca, phi_ca, theta_ca, t_
             end
         end
     end
+end
+
+function [ factor, selection ] = HomogeneitySelection( t, t_ref, dt_homogeneity )
+    % Homogeneity factor
+    factor = exp( ((t-t_ref)/dt_homogeneity).^2 );
+    selection = ( factor < 1000 );
 end
    
 function [] = DebugPlot( nr_of_sets, t, f, f_model, txt )
