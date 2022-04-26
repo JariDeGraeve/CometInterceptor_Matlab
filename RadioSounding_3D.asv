@@ -22,8 +22,8 @@ function [] = RadioSounding_Core( algo )
     
     %% Parameters
     % Debug script parameters
-    asymmety_present = 1;
-    jets_present = 1;
+    asymmety_present = 0;
+    jets_present = 0;
 
     % Physical parameters
     r_comet = 2000;            % comet radius, in m
@@ -77,7 +77,8 @@ function [] = RadioSounding_Core( algo )
     line_width = 2;
     
     % Derive Q_gas in particles per second
-    Q_gas = (Q_gas_kg/m_ave)/(4*pi*r_comet^2*v_gas);
+    Q_gas = (Q_gas_kg/m_ave);
+    n_gas_surface = Q_gas/(4*pi*r_comet^2*v_gas);
     gamma_gas = 2;
     
     %% Generate all trajectories and conditions in the ionosphere
@@ -264,7 +265,7 @@ function [] = RadioSounding_Core( algo )
             FindSolution_OneOverRgamma( ...
                 false, Q_start, gamma_start, ...
                 set_t, set_r, set_phi, set_theta, set_f, set_df, ...
-                tolerance ...
+                tolerance, r_comet ...
             );
         fprintf( 'Problem 0\n' );
         fprintf( '\n' );
@@ -296,14 +297,15 @@ function [] = RadioSounding_Core( algo )
             set_df = ...
                 { ...
                     rel_error * f_A_obs(selection) .* factor(selection); ...
-                    rel_error * f_B1_obs(selection) .* factor(selection)  ...
+                    rel_error * f_B1_obs(selection) .* factor(selection);  ...
+                    rel_error * f_B2_obs(selection) .* factor(selection)  ...
                 };
 
             [ gamma_1(i), dgamma_1(i), Q_1(i), dQ_1(i) ] = ...
                 FindSolution_OneOverRgamma( ...
                     false, Q_start, gamma_start, ...
                     set_t, set_r, set_phi, set_theta, set_f, set_df, ...
-                    tolerance ...
+                    tolerance, r_comet ...
                 );
             fprintf( '    : %12.6e +/- %12.6e  %10.6f +/- %10.6f\n', Q_1(i)*m_ave, dQ_1(i)*m_ave, gamma_1(i), dgamma_1(i) );
         end
@@ -324,26 +326,29 @@ function [] = RadioSounding_Core( algo )
         fprintf( '      Q                             gamma\n' );
         sza_A = SolarZenithAngle(phi_A, theta_A);
         sza_B1 = SolarZenithAngle(phi_B1, theta_B1);
+        sza_B2 = SolarZenithAngle(phi_B2, theta_B2);
         for i = 1:n_t_ls
             t_ref = t_ls(i);
             sza_ref = interp1( t, sza_A, t_ref );
             [ factor_A, selection_A ] = HomogeneitySelection( sza_A, sza_ref, dsza_homogeneity );           
             [ factor_B1, selection_B1 ] = HomogeneitySelection( sza_B1, sza_ref, dsza_homogeneity );           
-            set_t = { t(selection_A); t(selection_B1) };
-            set_r = { r_A(selection_A); r_B1(selection_B1) };
-            set_theta = { theta_A(selection_A); theta_B1(selection_B1) };
-            set_phi = { phi_A(selection_A); phi_B1(selection_B1) };
-            set_f = { f_A_obs(selection_A); f_B1_obs(selection_B1) };
+            [ factor_B2, selection_B2 ] = HomogeneitySelection( sza_B2, sza_ref, dsza_homogeneity );           
+            set_t = { t(selection_A); t(selection_B1); t(selection_B2) };
+            set_r = { r_A(selection_A); r_B1(selection_B1); r_B2(selection_B2) };
+            set_theta = { theta_A(selection_A); theta_B1(selection_B1); theta_B2(selection_B2) };
+            set_phi = { phi_A(selection_A); phi_B1(selection_B1); phi_B2(selection_B2) };
+            set_f = { f_A_obs(selection_A); f_B1_obs(selection_B1); f_B2_obs(selection_B2) };
             set_df = ...
                 { ...
                     rel_error * f_A_obs(selection_A) .* factor_A(selection_A); ...
-                    rel_error * f_B1_obs(selection_B1) .* factor_B1(selection_B1)  ...
+                    rel_error * f_B1_obs(selection_B1) .* factor_B1(selection_B1);  ...
+                    rel_error * f_B2_obs(selection_B2) .* factor_B2(selection_B2)  ...
                 };
             [ gamma_2(i), dgamma_2(i), Q_2(i), dQ_2(i) ] = ...
                 FindSolution_OneOverRgamma( ...
                     false, Q_start, gamma_start, ...
                     set_t, set_r, set_phi, set_theta, set_f, set_df, ...
-                    tolerance ...
+                    tolerance, r_comet ...
                 );
             fprintf( '    : %12.6e +/- %12.6e  %10.6f +/- %10.6f\n', Q_2(i)*m_ave, dQ_2(i)*m_ave, gamma_2(i), dgamma_2(i) );
         end
@@ -417,7 +422,7 @@ function [] = RadioSounding_Core( algo )
     set( ha3B, 'YLim', [ 1e-12, 10 ]*Q_gas );
 end
 
-function [ gamma, dgamma, Q, dQ ] = FindSolution_OneOverRgamma( debug, Q0, gamma0, t, r, phi, theta, f, df, tol )
+function [ gamma, dgamma, Q, dQ ] = FindSolution_OneOverRgamma( debug, Q0, gamma0, t, r, phi, theta, f, df, tol, r_comet )
     nr_of_sets = length(t);
     n = zeros( nr_of_sets, 1 );
     for k = 1:nr_of_sets
@@ -433,7 +438,8 @@ function [ gamma, dgamma, Q, dQ ] = FindSolution_OneOverRgamma( debug, Q0, gamma
             'phi', {phi}, ...
             'theta', {theta}, ...
             'f', {f}, ...
-            'df', {df} ...
+            'df', {df}, ...
+            'r_comet', r_comet ...
         );
     x0 = [ gamma0; log(Q0) ];   % log is natural logarithm (ln(Q0))
     sx = [ 0.1; 1 ];
@@ -458,7 +464,7 @@ function F = TargetFunction_OneOverRgamma( x, data )
         F = 0;
         f_model = cell( size(data.f) );
         for k = 1:data.nr_of_sets
-            f_model{k} = CometModel_OneOverRgamma( data.r{k}, data.phi{k}, data.theta{k}, Q, gamma );
+            f_model{k} = CometModel_OneOverRgamma( data.r{k}, data.phi{k}, data.theta{k}, Q, gamma, data.r_comet );
             F = F + ...
                 sum( ...
                     ( ( data.f{k} - f_model{k} ) ./ data.df{k} ).^2 ...
@@ -548,14 +554,14 @@ function n_n = CometIonosphere( r, phi, theta, r_comet, Q_gas, v_gas, a, jet )
     % Gas production at the surface
     q_gas = GasProductionNormalized( phi, theta, r_comet, a, Q_gas, jet );
     
-    n_n = q_gas ./ (v_gas * r .^2);
+    n_n = q_gas ./ (v_gas * (r ./ r_comet) .^2);
 
 end
 
-function f = CometModel_OneOverRgamma( r, phi, theta, Q, gamma ) 
+function f = CometModel_OneOverRgamma( r, phi, theta, Q, gamma, r_comet ) 
     % Routine that computes the power law model
     % f = Q / r^gamma
-    f = Q ./ r.^(gamma);
+    f = Q ./ r.^(gamma); % Q is dichtheid aan opp op 1m straal (4*pi * v_gas)
 end
 
 function [x, y, z] = SphericalToCartesian(r, phi, theta)

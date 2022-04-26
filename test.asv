@@ -31,5 +31,13 @@
 % 
 % integral2(q_gas , 0, 2*pi, 0, pi )
 
-plot(@(x) 1 - 0.8*)
+
+% theta = linspace(0, 2*pi);
+% polarplot(theta, 1 - 0.8 *cos(theta + pi), "LineWidth", 3)
+% hold on;
+% polarplot(theta,0.02+zeros(size(theta)), "LineWidth", 6)
+
+[xsurf,ysurf] = meshgrid(-2:0.2:2);
+zsurf = xsurf.^2-ysurf.^2;
+slice(X,Y,Z,V,xsurf,ysurf,zsurf)
 
