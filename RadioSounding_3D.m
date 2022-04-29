@@ -35,13 +35,19 @@ function [] = RadioSounding_Core( algo )
 
 %     delta_B1 = [-183000, 150000, -766000];   % coordinates spacecraft B1 relative to A, in m
 %     delta_B2 = [-233000, -350000, -466000];  % coordinates spacecraft B2 relative to A, in m
-    delta_B1 = [-170000, 270000, -300000];   % coordinates spacecraft B1 relative to A, in m
-    delta_B2 = [50000, -390000, -200000];   % coordinates spacecraft B1 relative to A, in m
+%     delta_B1 = [-170000, 270000, -300000];   % coordinates spacecraft B1 relative to A, in m
+%     delta_B2 = [50000, -390000, -200000];   % coordinates spacecraft B1 relative to A, in m
 %     delta_B2 = [-627000, -577000, -127000];  % coordinates spacecraft B2 relative to A, in m
-
+%     delta_B1 = [81600, 57700, -300000];   % coordinates spacecraft B1 relative to A, in m
+%     delta_B2 = [57700, 81600, -200000];   % coordinates spacecraft B1 relative to A, in m
+    delta_B1 = [-282842 + 353553 , 282842 + 353553, -60000];   % coordinates spacecraft B1 relative to A, in m
+    delta_B2 = [-127279 + 353553, 127279 + 353553, 60000];   % coordinates spacecraft B2 relative to A, in m
+% + 707106 => 1000km in front of S/C A; + 70710 => 100km in front of S/C A;
+% + 353553 => 500km in front of S/C A
     V_flyby = [42000, 42000, 0];  % flyby speedvector, in m/s
-    phi_ca = 30;               % azimuth angle at closest approach, in degrees
-    theta_ca = 30;             % polar angle at closest approach, in degrees
+%     V_flyby = [30000, 51961, 0];  % flyby speedvector, in m/s
+    phi_ca = -45;               % azimuth angle at closest approach, in degrees
+    theta_ca = 80;             % polar angle at closest approach, in degrees
     gamma = 0.8;               % ionization rate exponent, dimensionless
     alpha = 0.00002;           % ionization rate, in 1/s
     a = 0;                   % gas coma asymmetry factor, dimensionless
@@ -53,10 +59,10 @@ function [] = RadioSounding_Core( algo )
     dangle_jet = [];     % angular half-width of gas jet, in degrees
     f_jet = [];             % density contrast in jet, dimensionless
     if(jets_present)
-        theta_jet = [90,60, 80];       
-        phi_jet = [50, 0, 50];        
-        dangle_jet = [5, 15, 10];
-        f_jet = [3,5,6];
+        theta_jet = [90, 70];       
+        phi_jet = [-40, 0];        
+        dangle_jet = [5, 10];
+        f_jet = [2, 3];
     end
 %    sc_inclination = 0;        % inclination of orbit
     rel_error = 0.05;          % relative measurement error, dimensionless
@@ -75,10 +81,11 @@ function [] = RadioSounding_Core( algo )
     font_size = 14;
     marker_size = 8;
     line_width = 2;
+    show_sphere = 0;
     
     % Derive Q_gas in particles per second
     Q_gas = (Q_gas_kg/m_ave);
-    n_gas_surface = Q_gas/(4*pi*r_comet^2*v_gas);
+    %n_gas_surface = Q_gas/(4*pi*r_comet^2*v_gas);
     gamma_gas = 2;
     
     %% Generate all trajectories and conditions in the ionosphere
@@ -109,9 +116,9 @@ function [] = RadioSounding_Core( algo )
 %     jet = struct( 'theta', [theta_jet,theta_rjets], 'phi', [phi_jet,phi_rjets], 'dangle', [dangle_jet,dangle_rjets] ,'f', [f_jet,f_rjets] );
     jet = struct( 'theta', theta_jet, 'phi', phi_jet, 'dangle', dangle_jet ,'f', f_jet );
 %     % Conditions in ionosphere along trajectories
-    f_A = CometIonosphere( r_A, phi_A, theta_A, r_comet, Q_gas, v_gas, a, jet );
-    f_B1 = CometIonosphere( r_B1, phi_B1, theta_B1, r_comet, Q_gas, v_gas, a, jet );
-    f_B2 = CometIonosphere( r_B2, phi_B2, theta_B2, r_comet, Q_gas, v_gas, a, jet );
+    f_A = CometIonosphere( r_A, phi_A, theta_A, r_comet, Q_gas, v_gas, a, jet, gamma_gas);
+    f_B1 = CometIonosphere( r_B1, phi_B1, theta_B1, r_comet, Q_gas, v_gas, a, jet, gamma_gas );
+    f_B2 = CometIonosphere( r_B2, phi_B2, theta_B2, r_comet, Q_gas, v_gas, a, jet, gamma_gas );
     
     n_t = length(r_A);
     
@@ -139,9 +146,9 @@ function [] = RadioSounding_Core( algo )
     hold( ha1, 'on' );
     plot( ha1, t, f_A_obs/1e6, 'o', 'Color', [ 0 0 1 ], 'MarkerSize', marker_size );
     plot( ha1, t, f_A/1e6, '-', 'Color', [ 0 0 1 ], 'LineWidth', line_width );
-    plot( ha1, t, f_B1_obs/1e6, 'o', 'Color', [ 0 1 0 ], 'MarkerSize', marker_size );
+    plot( ha1, t, f_B1_obs/1e6, 'd', 'Color', [ 0 1 0 ], 'MarkerSize', marker_size );
     plot( ha1, t, f_B1/1e6, '-', 'Color', [ 0 1 0 ], 'LineWidth', line_width );
-    plot( ha1, t, f_B2_obs/1e6, 'o', 'Color', [ 1 0 0 ], 'MarkerSize', marker_size );
+    plot( ha1, t, f_B2_obs/1e6, 's', 'Color', [ 1 0 0 ], 'MarkerSize', marker_size );
     plot( ha1, t, f_B2/1e6, '-', 'Color', [ 1 0 0 ], 'LineWidth', line_width );
     hxl = get( ha1, 'XLabel' );
     set( hxl, 'String', '$t$ [s]', 'Interpreter', 'latex', 'FontSize', font_size );
@@ -171,33 +178,34 @@ function [] = RadioSounding_Core( algo )
     plot_rr = sqrt( xx.^2 + yy.^2 + zz.^2);
     plot_phi = atan2d( yy, xx );
     plot_theta = atan2d(sqrt(xx.^2 + yy.^2), zz);
-    plot_nn = CometIonosphere( plot_rr, plot_phi, plot_theta, r_comet, Q_gas, v_gas, a, jet );
+    plot_nn = CometIonosphere( plot_rr, plot_phi, plot_theta, r_comet, Q_gas, v_gas, a, jet, gamma_gas );
 %      plot_nn = CometReal_OneOverRgamma( plot_rr, plot_phi, plot_theta, Q_gas, gamma_gas );
     xslice = [];   
     yslice = 0;
     zslice = 0;
-    slices = slice(ha2, -xx/1000, yy/1000, zz/1000,log10(plot_nn/1e6),xslice,yslice,zslice);
+    slices = slice(ha2, -xx/1000, yy/1000, zz/1000,log10(plot_nn/1e6),-xslice,yslice,zslice);
     set(slices,'EdgeColor','none', 'FaceColor', 'interp');
 
-    
-    sphere = xx.^2 + yy.^2 + zz.^2;
-    p = patch(ha2,isosurface(-xx/1000, yy/1000, zz/1000, sphere, 1e11));
-    isonormals(-xx/1000,yy/1000,zz/1000,sphere,p)
-    isocolors(-xx/1000,yy/1000,zz/1000,log10(plot_nn/1e6),p)
-    p.FaceColor = 'interp';
-    p.EdgeColor = 'none';
+    if(show_sphere)
+        sphere = xx.^2 + yy.^2 + zz.^2;
+        p = patch(ha2,isosurface(-xx/1000, yy/1000, zz/1000, sphere, 1e11));
+        isonormals(-xx/1000,yy/1000,zz/1000,sphere,p)
+        isocolors(-xx/1000,yy/1000,zz/1000,log10(plot_nn/1e6),p)
+        p.FaceColor = 'interp';
+        p.EdgeColor = 'none';
+    end
 
     view(3)
     hold( ha2, 'on' );
     idx = round(n_t/2);
     plot3( ha2, ...
-        r_A.*sind(theta_A).*cosd(phi_A)/1000, r_A.*sind(theta_A).*sind(phi_A)/1000, r_A.*cosd(theta_A)/1000, 'b-', ...
-        r_B1.*sind(theta_B1).*cosd(phi_B1)/1000, r_B1.*sind(theta_B1).*sind(phi_B1)/1000, r_B1.*cosd(theta_B1)/1000,'g-', ...
-        r_B2.*sind(theta_B2).*cosd(phi_B2)/1000, r_B2.*sind(theta_B2).*sind(phi_B2)/1000, r_B2.*cosd(theta_B2)/1000,'r-', ...
+        -r_A.*sind(theta_A).*cosd(phi_A)/1000, r_A.*sind(theta_A).*sind(phi_A)/1000, r_A.*cosd(theta_A)/1000, 'b-', ...
+        -r_B1.*sind(theta_B1).*cosd(phi_B1)/1000, r_B1.*sind(theta_B1).*sind(phi_B1)/1000, r_B1.*cosd(theta_B1)/1000,'g-', ...
+        -r_B2.*sind(theta_B2).*cosd(phi_B2)/1000, r_B2.*sind(theta_B2).*sind(phi_B2)/1000, r_B2.*cosd(theta_B2)/1000,'r-', ...
         0, 0, 0, 'ko', ...
-        r_A(idx).*sind(theta_A(idx)).*cosd(phi_A(idx))/1000, r_A(idx).*sind(theta_A(idx)).*sind(phi_A(idx))/1000, r_A(idx).*cosd(theta_A(idx))/1000, 'bo', ...
-        r_B1(idx).*sind(theta_B1(idx)).*cosd(phi_B1(idx))/1000, r_B1(idx).*sind(theta_B1(idx)).*sind(phi_B1(idx))/1000, r_B1(idx).*cosd(theta_B1(idx))/1000, 'go', ...
-        r_B2(idx).*sind(theta_B2(idx)).*cosd(phi_B2(idx))/1000, r_B2(idx).*sind(theta_B2(idx)).*sind(phi_B2(idx))/1000, r_B2(idx).*cosd(theta_B2(idx))/1000, 'ro', ...
+        -r_A(idx).*sind(theta_A(idx)).*cosd(phi_A(idx))/1000, r_A(idx).*sind(theta_A(idx)).*sind(phi_A(idx))/1000, r_A(idx).*cosd(theta_A(idx))/1000, 'bo', ...
+        -r_B1(idx).*sind(theta_B1(idx)).*cosd(phi_B1(idx))/1000, r_B1(idx).*sind(theta_B1(idx)).*sind(phi_B1(idx))/1000, r_B1(idx).*cosd(theta_B1(idx))/1000, 'go', ...
+        -r_B2(idx).*sind(theta_B2(idx)).*cosd(phi_B2(idx))/1000, r_B2(idx).*sind(theta_B2(idx)).*sind(phi_B2(idx))/1000, r_B2(idx).*cosd(theta_B2(idx))/1000, 'ro', ...
         'LineWidth', line_width, 'MarkerSize', marker_size...
     );
     hxl = get( ha2, 'XLabel' );
@@ -439,7 +447,7 @@ function [] = RadioSounding_Core( algo )
     set( hxl, 'String', '$t$ [s]', 'Interpreter', 'latex', 'FontSize', font_size );
     hyl = get( ha3B, 'YLabel' );
     set( hyl, 'String', '$Q$ [kg/s$^{-1}$]', 'Interpreter', 'latex', 'FontSize', font_size );
-%     set( ha3B, 'YLim', [ 1e-12, 10 ]*Q_gas );
+    set( ha3B, 'YLim', [ 1e-9, 1e6 ]*Q_gas*m_ave );
 end
 
 function [ gamma, dgamma, Q, dQ ] = FindSolution_OneOverRgamma( debug, Q0, gamma0, t, r, phi, theta, f, df, tol, v_gas )
@@ -504,7 +512,7 @@ function f = CometReal_OneOverRgamma( r, phi, theta, Q, gamma )
 end
 
 function sza = SolarZenithAngle( phi, theta) 
-    x = -sind(theta) .* cosd(phi);
+    x = sind(theta) .* cosd(phi);
     y = sind(theta) .* sind(phi);
     z = cosd(theta);
     % Cosine rule: a^2 = b^2 + c^2 - 2*a*c*cos(alpha)
@@ -554,7 +562,7 @@ function q_gas = GasProduction( phi, theta, r_comet, a, Q_gas, jet )
 
     % Compute the flux on the nucleus surface at the base of the streamline
     % as a function of theta
-    q_gas = q_gas0 .* ( 1 + a*cosd(sza+180) ) / ( 1 + a ); 
+    q_gas = q_gas0 .* ( 1 + a*cosd(sza) ) / ( 1 + a ); 
 end
 
 function q_gas = GasProductionNormalized( phi, theta, r_comet, a, Q_gas, jet )
@@ -568,13 +576,13 @@ function q_gas = GasProductionNormalized( phi, theta, r_comet, a, Q_gas, jet )
 
 end
 
-function n_n = CometIonosphere( r, phi, theta, r_comet, Q_gas, v_gas, a, jet ) 
+function n_n = CometIonosphere( r, phi, theta, r_comet, Q_gas, v_gas, a, jet, gamma_gas) 
 
     % Gas production at the surface
     q_gas = GasProductionNormalized( phi, theta, r_comet, a, Q_gas, jet );
     
     % Gas density at the surface
-    n_n = q_gas ./ (v_gas * (r ./ r_comet) .^2);
+    n_n = q_gas ./ (v_gas * (r ./ r_comet) .^gamma_gas);
 
 end
 
@@ -582,10 +590,7 @@ function f = CometModel_OneOverRgamma( r, phi, theta, Q, gamma, v_gas )
     % Routine that computes the power law model
     % f = Q / r^gamma
     %f = (Q * 4 * pi *r_comet^2 *1000) ./ (r/r_comet).^(gamma); % Q is dichtheid aan opp op 1m straal (4*pi * v_gas)
-    %f = (Q ./ r.^gamma);
-    f = Q ./ (r.^gamma * 4 * pi * v_gas); 
-    %4*pi*r_comet^2*v_gas)
-    
+    f = Q ./ (r.^gamma * 4 * pi * v_gas);     
 end
 
 function [x, y, z] = SphericalToCartesian(r, phi, theta)
@@ -609,7 +614,7 @@ function [ r, phi, theta ] = FlybyTrajectory( Vflyby, D_ca, phi_ca, theta_ca, t_
     [x_ca, y_ca, z_ca] = SphericalToCartesian(D_ca, phi_ca, theta_ca);
 
     % Cartesian coordinates in time
-    x_sc = (t-t_ca) * Vflyby(1) - x_ca;
+    x_sc = (t-t_ca) * Vflyby(1) + x_ca;
     y_sc = (t-t_ca) * Vflyby(2) + y_ca;
     z_sc = (t-t_ca) * Vflyby(3) + z_ca;
     
