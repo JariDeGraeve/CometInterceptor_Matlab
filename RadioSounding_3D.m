@@ -45,15 +45,8 @@ function [] = RadioSounding_Core( algo )
     D_ca_A = 1000000;          % distance at closest approach of A, in m
     t_ca_A = 0;                % time at closest approach of A, in s
 
-%     delta_B1 = [-183000, 150000, -766000];   % coordinates spacecraft B1 relative to A, in m
-%     delta_B2 = [-233000, -350000, -466000];  % coordinates spacecraft B2 relative to A, in m
-%     delta_B1 = [-170000, 270000, -300000];   % coordinates spacecraft B1 relative to A, in m
-%     delta_B2 = [50000, -390000, -200000];   % coordinates spacecraft B1 relative to A, in m
-%     delta_B2 = [-627000, -577000, -127000];  % coordinates spacecraft B2 relative to A, in m
-%     delta_B1 = [81600, 57700, -300000];   % coordinates spacecraft B1 relative to A, in m
-%     delta_B2 = [57700, 81600, -200000];   % coordinates spacecraft B1 relative to A, in m
-    delta_B1 = [-282842 + 353553 , 282842 + 353553, -60000];   % coordinates spacecraft B1 relative to A, in m
-    delta_B2 = [-127279 + 353553, 127279 + 353553, 60000];   % coordinates spacecraft B2 relative to A, in m
+    delta_B1 = [-282842 - 353553 , -282842 + 353553 , -60000];   % coordinates spacecraft B1 relative to A, in m (closest approach = 595km)
+    delta_B2 = [-127279 - 353553 , -127279 + 353553 , 60000];   % coordinates spacecraft B2 relative to A, in m (closest approach = 838km)
 % + 707106 => 1000km in front of S/C A; + 70710 => 100km in front of S/C A;
 % + 353553 => 500km in front of S/C A
     V_flyby = [-42000, 42000, 0];  % flyby speedvector, in m/s
@@ -72,7 +65,7 @@ function [] = RadioSounding_Core( algo )
     f_jet = [];             % density contrast in jet, dimensionless
     if(jets_present)
         theta_jet = [90, 70];       
-        phi_jet = [-40, 0];        
+        phi_jet = [-35, 0];        
         dangle_jet = [5, 10];
         f_jet = [2, 3];
     end
@@ -93,7 +86,7 @@ function [] = RadioSounding_Core( algo )
     font_size = 14;
     marker_size = 8;
     line_width = 2;
-    show_sphere = 0;
+    show_sphere = 1;
     
     % Derive Q_gas in particles per second
     Q_gas = (Q_gas_kg/m_ave);
