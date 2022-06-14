@@ -3,12 +3,12 @@ function [] = RadioSounding_3D()
     % Algorithm selection
     algo = ...
         struct( ...
-              'do_QOverRgamma', false, ...
-              'do_QOverRgamma_time', false, ...
-              'do_QOverRgamma_sza', false, ...
-              'do_QOverRSquared', true, ...
-              'do_QOverRSquared_time', true, ...
-              'do_QOverRSquared_sza', true ...
+              'do_QOverRgamma', true, ...
+              'do_QOverRgamma_time', true, ...
+              'do_QOverRgamma_sza', true, ...
+              'do_QOverRSquared', false, ...
+              'do_QOverRSquared_time', false, ...
+              'do_QOverRSquared_sza', false ...
         );
     RadioSounding_Core( algo );
     
@@ -28,7 +28,7 @@ function [] = RadioSounding_Core( algo )
     v_gas = 1000;              % neutral gas speed, in m/s
     t_ca_A = 0;                % time at closest approach of A, in s
     
-    % x - 353553, y + 353553 => B2/2 500km in front of S/C A
+    % x - 353553, y + 353553 => B1/2 500km in front of S/C A
     % Config 1
    D_ca_A = 1000000;          % distance at closest approach of A, in m   
    delta_B2 = [-282842 - 353553 , -282842 + 353553 , -60000];   % coordinates spacecraft B2 relative to A, in m (closest approach = 595km)
@@ -43,8 +43,8 @@ function [] = RadioSounding_Core( algo )
 %    delta_B1 = [-127279 - 353553 , -127279 + 353553 , 60000];    % coordinates spacecraft B1 relative to A, in m (closest approach = 838km)
     % Config 4
 %    D_ca_A = 1500000;          % distance at closest approach of A, in m   
-%    delta_B2 = [-282842  , -282842  , -60000];   % coordinates spacecraft B2 relative to A, in m (closest approach = 595km)
-%    delta_B1 = [-127279  , -127279  , 60000];    % coordinates spacecraft B1 relative to A, in m (closest approach = 838km)
+%    delta_B2 = [-282842 - 353553 , -282842 + 353553 , -60000];   % coordinates spacecraft B2 relative to A, in m (closest approach = 595km)
+%    delta_B1 = [-127279 - 353553 , -127279 + 353553 , 60000];    % coordinates spacecraft B1 relative to A, in m (closest approach = 838km)
     % Config 5
 %     D_ca_A = 1000000;          % distance at closest approach of A, in m   
 %     delta_B2 = [-141421 - 176776.5 , -141421 + 176776.5 , -30000];   % coordinates spacecraft B2 relative to A, in m (closest approach = 595km)
@@ -57,8 +57,6 @@ function [] = RadioSounding_Core( algo )
     V_flyby = [-42000, 42000, 0];  % flyby speedvector, in m/s
     phi_ca = 45;               % azimuth angle at closest approach, in degrees
     theta_ca = 80;             % polar angle at closest approach, in degrees
-    gamma = 0.8;               % ionization rate exponent, dimensionless
-    alpha = 0.00002;           % ionization rate, in 1/s
     a = 0;                   % gas coma asymmetry factor, dimensionless
     theta_jet = [];       % polar angle of center of gas jet, in degrees
     phi_jet = [];        % azimuth angle of center of gas jet, in degrees
@@ -89,7 +87,6 @@ function [] = RadioSounding_Core( algo )
 %         dangle_jet = [5, 6, 10];
 %         f_jet = [6, 2, 5];
     end
-%    sc_inclination = 0;        % inclination of orbit
     rel_error = 0.05;          % relative measurement error, dimensionless
     
     % Numerical parameters
@@ -104,12 +101,12 @@ function [] = RadioSounding_Core( algo )
     font_size = 14;
     marker_size = 8;
     line_width = 2;
-    show_sphere = 1;           % show the sphere together with the slices in the comet environment plot
+    show_sphere = 0;           % show the sphere together with the slices in the comet environment plot
     
     % Environment parameters Q and gamma
-    Q_gas = (Q_gas_kg/m_ave);  % Derive Q_gas in particles per second
+    Q_gas = (Q_gas_kg/m_ave);  % Derive Q_gas (neutral gas density), in particles per second
     %n_gas_surface = Q_gas/(4*pi*r_comet^2*v_gas);
-    gamma_gas = 2;             % Gamma, dimentionless
+    gamma_gas = 2;             % Gamma (gas expansion coefficient), dimentionless
     
     %% Generate all trajectories and conditions in the ionosphere
     t = ( -t0 : dt : t0 )';
@@ -156,6 +153,7 @@ function [] = RadioSounding_Core( algo )
         );
     hold( ha1, 'on' );
     % Plot the measurements (with random noise) and the real values
+    % Either f vs sza, f*r^2 vs sza or f vs t
 %     sza_A = SolarZenithAngle(phi_A, theta_A);
 %     sza_B2 = SolarZenithAngle(phi_B2, theta_B2);
 %     sza_B1 = SolarZenithAngle(phi_B1, theta_B1);
@@ -209,7 +207,7 @@ function [] = RadioSounding_Core( algo )
     plot_phi = atan2d( yy, xx );
     plot_theta = atan2d(sqrt(xx.^2 + yy.^2), zz);
     plot_nn = CometIonosphere( plot_rr, plot_phi, plot_theta, r_comet, Q_gas, v_gas, a, jets, gamma_gas );
-    xslice = [];   
+    xslice = 0;   
     yslice = 0;
     zslice = 0;
     slices = slice(ha2, -xx/1000, yy/1000, zz/1000,log10(plot_nn/1e6),-xslice,yslice,zslice);
@@ -254,14 +252,6 @@ function [] = RadioSounding_Core( algo )
         'YTick', ...
             log10( ...
                 [ ...
-%                     1e-15, 2e-15, 3e-15, 4e-15, 5e-15, 6e-15, 7e-15, 8e-15, 9e-15 ...
-%                     1e-14, 2e-14, 3e-14, 4e-14, 5e-14, 6e-14, 7e-14, 8e-14, 9e-14 ...
-%                     1e-13, 2e-13, 3e-13, 4e-13, 5e-13, 6e-13, 7e-13, 8e-13, 9e-13 ...
-%                     1e-12, 2e-12, 3e-12, 4e-12, 5e-12, 6e-12, 7e-12, 8e-12, 9e-12 ...
-%                     1e-11, 2e-11, 3e-11, 4e-11, 5e-11, 6e-11, 7e-11, 8e-11, 9e-11 ...
-%                     1e-10, 2e-10, 3e-10, 4e-10, 5e-10, 6e-10, 7e-10, 8e-10, 9e-10 ...
-%                     1e-9, 2e-9, 3e-9, 4e-9, 5e-9, 6e-9, 7e-9, 8e-9, 9e-9 ...
-%                     1e-8, 2e-8, 3e-8, 4e-8, 5e-8, 6e-8, 7e-8, 8e-8, 9e-8 ...
                     0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, ...
                     0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, ...
                     1, 2, 3, 4, 5, 6, 7, 8, 9, ...
@@ -278,14 +268,6 @@ function [] = RadioSounding_Core( algo )
             ), ...
         'YTickLabel', ...
             { ...
-%                 '10^{-15}', '', '', '', '', '', '', '', '', ...
-%                 '10^{-14}', '', '', '', '', '', '', '', '', ...
-%                 '10^{-13}', '', '', '', '', '', '', '', '', ...
-%                 '10^{-12}', '', '', '', '', '', '', '', '', ...
-%                 '10^{-11}', '', '', '', '', '', '', '', '', ...
-%                 '10^{-10}', '', '', '', '', '', '', '', '', ...
-%                 '10^{-9}', '', '', '', '', '', '', '', '', ...
-%                 '10^{-8}', '', '', '', '', '', '', '', '', ...
                 '', '', '', '', '', '', '', '', '', ...
                 '10^{-1}', '', '', '', '', '', '', '', '', ...
                 '10^0', '', '', '', '', '', '', '', '', ...
@@ -415,7 +397,7 @@ function [] = RadioSounding_Core( algo )
     end
 
 
-    %% Problem 3.1:
+    %% Problem 2.1:
     % Derive Q from measurements by A, B2 and B1 global
     if algo.do_QOverRSquared
         set_t = { t; t; t};
@@ -424,7 +406,7 @@ function [] = RadioSounding_Core( algo )
         set_theta = { theta_A; theta_B2; theta_B1 };
         set_f = { f_A_obs; f_B2_obs; f_B1_obs };
         set_df = { f_A_obs * rel_error; f_B2_obs * rel_error;  f_B1_obs * rel_error };    
-        [ Q_31, dQ_31 ] = ...
+        [ Q_21, dQ_21 ] = ...
             FindSolution_QOverRSquared( ...
                 false, Q_start, ...
                 set_t, set_r, set_phi, set_theta, set_f, set_df, ...
@@ -433,18 +415,18 @@ function [] = RadioSounding_Core( algo )
         fprintf( 'Problem 1.1 (Q/r^2)\n' );
         fprintf( '\n' );
         fprintf( '      Q\n' );
-        fprintf( '    : %12.6e +/- %12.6e\n', Q_31, dQ_31 );
+        fprintf( '    : %12.6e +/- %12.6e\n', Q_21, dQ_21 );
         fprintf( '\n' );
     end
 
-    %% Problem 3.2:
+    %% Problem 2.2:
     % Derive Q from measurements by A, B2 and B1 at a given time
     if algo.do_QOverRSquared_time
         t_ls = ( -t0 : dt_ls : t0 )';
         n_t_ls = length(t_ls);
-        Q_32 = zeros( n_t_ls, 1 );
-        dQ_32 = zeros( n_t_ls, 1 );
-        fprintf( 'Problem 3.2 (Q/r^2 at given time)\n' );
+        Q_22 = zeros( n_t_ls, 1 );
+        dQ_22 = zeros( n_t_ls, 1 );
+        fprintf( 'Problem 2.2 (Q/r^2 at given time)\n' );
         fprintf( '\n' );
         fprintf( '      Q\n' );
         for i = 1:n_t_ls
@@ -462,26 +444,26 @@ function [] = RadioSounding_Core( algo )
                     rel_error * f_B1_obs(selection) .* factor(selection)  ...
                 };
 
-            [ Q_32(i), dQ_32(i) ] = ...
+            [ Q_22(i), dQ_22(i) ] = ...
                 FindSolution_QOverRSquared( ...
                     false, Q_start, ...
                     set_t, set_r, set_phi, set_theta, set_f, set_df, ...
                     tolerance, v_gas ...
                 );
-            fprintf( '    : %12.6e +/- %12.6e\n', Q_32(i), dQ_32(i));
+            fprintf( '    : %12.6e +/- %12.6e\n', Q_22(i), dQ_22(i));
         end
-        fprintf('mean: %12.6e\n', exp(mean(log(Q_32), 'omitnan')));
+        fprintf('mean: %12.6e\n', exp(mean(log(Q_22), 'omitnan')));
         fprintf( '\n' );
     end
 
-    %% Problem 3.3:
+    %% Problem 2.3:
     % Derive Q from measurements by A, B2 and B1 at a given solar zenith angle
     if algo.do_QOverRSquared_sza
         t_ls = ( -t0 : dt_ls : t0 )';
         n_t_ls = length(t_ls);
-        Q_33 = zeros( n_t_ls, 1 );
-        dQ_33 = zeros( n_t_ls, 1 );
-        fprintf( 'Problem 3.3 (Q/r^2 at given sza)\n' );
+        Q_23 = zeros( n_t_ls, 1 );
+        dQ_23 = zeros( n_t_ls, 1 );
+        fprintf( 'Problem 2.3 (Q/r^2 at given sza)\n' );
         fprintf( '\n' );
         fprintf( '      Q\n' );
         sza_A = SolarZenithAngle(phi_A, theta_A);
@@ -504,15 +486,15 @@ function [] = RadioSounding_Core( algo )
                     rel_error * f_B2_obs(selection_B2) .* factor_B2(selection_B2);  ...
                     rel_error * f_B1_obs(selection_B1) .* factor_B1(selection_B1)  ...
                 };
-            [ Q_33(i), dQ_33(i) ] = ...
+            [ Q_23(i), dQ_23(i) ] = ...
                 FindSolution_QOverRSquared( ...
                     false, Q_start, ...
                     set_t, set_r, set_phi, set_theta, set_f, set_df, ...
                     tolerance, v_gas ...
                 );
-            fprintf( '    : %12.6e +/- %12.6e\n', Q_33(i), dQ_33(i));
+            fprintf( '    : %12.6e +/- %12.6e\n', Q_23(i), dQ_23(i));
         end
-        fprintf('mean: %12.6e\n', exp(mean(log(Q_33), 'omitnan')));
+        fprintf('mean: %12.6e\n', exp(mean(log(Q_23), 'omitnan')));
         fprintf( '\n' );
     end
     
@@ -555,10 +537,8 @@ function [] = RadioSounding_Core( algo )
         plot( ha3A, t_ls, gamma_13, 'd-', 'Color', [ 0.5 0 0.5 ], 'MarkerSize', marker_size, 'LineWidth', 0.5*line_width );
         plot( ha3A, t, mean(gamma_13, 'omitnan')*ones(size(t)), '-', 'Color', [ 0.5 0 0.5 ], 'LineWidth', line_width );
     end
-    % Problem 3 (QOverRsquared) has no gamma to plot
+    % Problem 2 (QOverRsquared) has no gamma to plot
 
-%     hxl = get( ha3A, 'XLabel' );
-%     set( hxl, 'String', '$t$ [s]', 'Interpreter', 'latex', 'FontSize', font_size );
     hyl = get( ha3A, 'YLabel' );
     set( hyl, 'String', '$\gamma$', 'Interpreter', 'latex', 'FontSize', font_size );
     set( ha3A, 'YLim', [ 0.5, 1.5 ]*gamma_gas );
@@ -597,17 +577,17 @@ function [] = RadioSounding_Core( algo )
         plot( ha3B, t, exp(mean(log(Q_13), 'omitnan'))*ones(size(t)), '-', 'Color', [ 0.5 0 0.5 ], 'LineWidth', line_width );
 
     end
-    % Problem 3 (QOverRSquared)
+    % Problem 2 (QOverRSquared)
     if algo.do_QOverRSquared
-        plot( ha3B, [ -1, 1 ]*t0, [ 1, 1]*Q_31, '-', 'Color', [ 0.6 0.6 0.6 ], 'LineWidth', 0.5*line_width );
+        plot( ha3B, [ -1, 1 ]*t0, [ 1, 1]*Q_21, '-', 'Color', [ 0.6 0.6 0.6 ], 'LineWidth', 0.5*line_width );
     end
     if algo.do_QOverRSquared_time
-        plot( ha3B, t_ls, Q_32, 'd-', 'Color', [ 0 0 1 ], 'MarkerSize', marker_size, 'LineWidth', 0.5*line_width );
-        plot( ha3B, t, exp(mean(log(Q_32), 'omitnan'))*ones(size(t)), '-', 'Color', [ 0 0 1 ], 'LineWidth', line_width );
+        plot( ha3B, t_ls, Q_22, 'd-', 'Color', [ 0 0 1 ], 'MarkerSize', marker_size, 'LineWidth', 0.5*line_width );
+        plot( ha3B, t, exp(mean(log(Q_22), 'omitnan'))*ones(size(t)), '-', 'Color', [ 0 0 1 ], 'LineWidth', line_width );
     end
     if algo.do_QOverRSquared_sza
-        plot( ha3B, t_ls, Q_33, 'd-', 'Color', [ 0.5 0 0.5 ], 'MarkerSize', marker_size, 'LineWidth', 0.5*line_width );
-        plot( ha3B, t, exp(mean(log(Q_33), 'omitnan'))*ones(size(t)), '-', 'Color', [ 0.5 0 0.5 ], 'LineWidth', line_width );
+        plot( ha3B, t_ls, Q_23, 'd-', 'Color', [ 0.5 0 0.5 ], 'MarkerSize', marker_size, 'LineWidth', 0.5*line_width );
+        plot( ha3B, t, exp(mean(log(Q_23), 'omitnan'))*ones(size(t)), '-', 'Color', [ 0.5 0 0.5 ], 'LineWidth', line_width );
     end
 
     hxl = get( ha3B, 'XLabel' );
@@ -615,16 +595,6 @@ function [] = RadioSounding_Core( algo )
     hyl = get( ha3B, 'YLabel' );
     set( hyl, 'String', '$Q$ [particle $\cdot$ s$^{-1}$]', 'Interpreter', 'latex', 'FontSize', font_size );
     set( ha3B, 'YLim', [ 1e-9, 1e6 ]*Q_gas );
-
-%     figure;
-%     gamtab = table(gamma_12, gamma_13);
-%     boxplot(gamtab.Variables);
-%     figure;
-%     Qtab = table(Q_12, Q_13, Q_32, Q_33);
-%     boxplot(Qtab.Variables);
-%     ax = gca;
-%     ax.YAxis.Scale ="log";
-
 end
 
 
@@ -687,7 +657,7 @@ function F = TargetFunction_QOverRgamma( x, data )
 end
 
 
-%% Problem 3: Q/r^2
+%% Problem 2: Q/r^2
 function [ Q, dQ ] = FindSolution_QOverRSquared( debug, Q0, t, r, phi, theta, f, df, tol, v_gas )
     nr_of_sets = length(t);
     n = zeros( nr_of_sets, 1 );
@@ -733,12 +703,6 @@ function F = TargetFunction_QOverRSquared( x, data )
         DebugPlot( data.nr_of_sets, data.t, data.f, f_model, sprintf( 'Q %.4e', Q ) );
     end
 end
-
-% function f = CometReal_QOverRgamma( r, phi, theta, Q, gamma ) 
-%     %% Routine that computes the power law model
-%     % f = Q / r^gamma
-%     f = Q ./ r.^(gamma);
-% end
 
 % Calculate the solar zenith angle based on angles phi and theta
 function sza = SolarZenithAngle(phi, theta) 
